@@ -1,0 +1,902 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  passwordHash  String
+  username      String    @unique
+  createdAt     DateTime  @default(now())
+  lastLoginAt   DateTime?
+  
+  premium       Boolean   @default(false)
+  premiumUntil  DateTime?
+  
+  actionCount   Int       @default(0)
+  lastActionAt  DateTime  @default(now())
+  
+  character     Character?
+  notifications Notification[]
+  sessions      Session[]
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Character {
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  name          String
+  
+  originId      String?
+  origin        Origin?  @relation(fields: [originId], references: [id])
+  classId       String
+  subclassLevel Int      @default(1)
+  
+  level         Int      @default(1)
+  xp            Int      @default(0)
+  xpToNextLevel Int      @default(100)
+  
+  currentHp     Int      @default(100)
+  maxHp         Int      @default(100)
+  
+  // ============ ATTRITION SYSTEM ============
+  wounds        String   @default("[]")      // JSON: [{type, zone, duration}]
+  corruptionLevel Int    @default(0)         // 0-100 (attrition system)
+  fatigue       Int      @default(0)         // 0-100
+  
+  // ============ STAT INVESTMENTS ============
+  baseStrength  Int      @default(10)
+  baseAgility   Int      @default(10)
+  baseVitality  Int      @default(10)
+  baseLuck      Int      @default(10)
+  
+  strengthInvested   Int @default(0)
+  agilityInvested    Int @default(0)
+  vitalityInvested   Int @default(0)
+  luckInvested       Int @default(0)
+  
+  gold          Int      @default(50)
+  victories     Int      @default(0)
+  defeats        Int     @default(0)
+  craftCount    Int      @default(0)
+  unspentPoints Int      @default(5)
+  
+  currentZoneId String?
+  currentCityId String?
+  currentCity   City?    @relation(fields: [currentCityId], references: [id])
+  
+  // Equipment slot IDs
+  equippedWeapon    String?
+  equippedShield    String?
+  equippedHelmet    String?
+  equippedArmor     String?
+  equippedLegs      String?
+  equippedAccessory String?
+  equippedMount     String?                // Mount item ID
+  
+  // ============ MOUNT SYSTEM ============
+  currentMount      String?                // Current mount type: 'none', 'horse', 'wyvern', 'griffon'
+  mountSpeedBonus   Int      @default(0)    // Speed bonus from mount (0-50)
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  // Secret discovery flags (JSON for flexibility)
+  secretFlags   String   @default("[]")
+  curses        String   @default("[]")
+  blessings     String   @default("[]")
+  titles        String   @default("[]")
+  forbiddenKnowledge Int @default(0)
+  
+  // ============ HIDDEN TRACKERS ============
+  // Zone-specific deaths
+  deathsInSecretZone    Int @default(0)
+  deathsInVolcan        Int @default(0)
+  deathsInTombe         Int @default(0)
+  deathsInOmbre         Int @default(0)
+  
+  // Combat behavior
+  pvpDefeats            Int @default(0)
+  successfulSteals      Int @default(0)
+  fledCombat            Int @default(0)
+  wonFledCombat         Int @default(0)
+  
+  // Choices and refusals
+  tradesRefused         Int @default(0)
+  sacredChoicesRefused  Int @default(0)
+  offersRefused         Int @default(0)
+  betrayalsCommitted    Int @default(0)
+  oathsTaken            Int @default(0)
+  oathsBroken           Int @default(0)
+  
+  // Items and objects
+  itemsDestroyed        Int @default(0)
+  relicsCollected       Int @default(0)
+  itemsBought           Int @default(0)
+  itemsSold             Int @default(0)
+  
+  // Exploration
+  explorationsNoCombat  Int @default(0)
+  hiddenZonesVisited    Int @default(0)
+  secretChestsFound      Int @default(0)
+  bossKilled            Int @default(0)
+  bossSpared            Int @default(0)
+  
+  // Time and consistency
+  daysSinceStart        Int @default(0)
+  consecutiveDaysPlayed Int @default(0)
+  
+  // Alignment (hidden) - maintenant utilisé pour le système de corruption RPG
+  moralAlignment     Int @default(0) // -100 to +100 (good vs evil)
+  chaosAlignment     Int @default(0) // -100 to +100 (order vs chaos)
+  
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  class         CharacterClass @relation(fields: [classId], references: [id])
+  stats         CharacterStats?
+  inventory     InventoryItem[]
+  questProgress QuestProgress[]
+  guildMember   GuildMember?
+  discoveries   Discovery[]
+  hiddenTrackers HiddenTracker[]
+  classUnlocks  ClassUnlockEvent[]
+  reputations   Reputation[]
+  playerChoices PlayerChoice[]
+  zoneStates    CharacterZoneState[]
+  dungeonStates CharacterDungeonState[]
+}
+
+model CharacterClass {
+  id          String @id @default(cuid())
+  name        String @unique
+  description String?
+  icon        String?
+  baseBonuses String @default("{}")
+  
+  // Classification
+  tier        String  @default("base") // origin, base, advanced, rare, legendary, unique, cursed
+  category    String? // warrior, rogue, mage, priest, hybrid
+  role        String? // tank, dps, healer, utility, hybrid
+  
+  // Unlock conditions
+  unlockHint      String? // Cryptic hint for secret classes
+  unlockCondition String? // JSON: required conditions
+  prerequisites   String? // JSON: required classes/levels
+  isSecret        Boolean @default(false)
+  maxPerServer    Int?    // For unique classes (1 per server, etc)
+  
+  // Trade-offs
+  primaryStrength String? // Main advantage
+  weakness        String? // Main disadvantage
+  costToUnlock    String? // What player loses to get this class
+  
+  // Class-specific effects
+  specialAbility  String? // Unique mechanic description
+  forbiddenCombos String? // JSON: incompatible classes
+  
+  characters  Character[]
+  skills      Skill[]
+}
+
+model Origin {
+  id          String @id @default(cuid())
+  name        String @unique
+  description String?
+  icon        String?
+  bonuses     String @default("{}")
+  isSecret    Boolean @default(false)
+  
+  characters  Character[]
+}
+
+model HiddenTracker {
+  id            String @id @default(cuid())
+  characterId   String
+  trackerType   String // deaths_in_zone, steals_successful, refused_offers, etc.
+  zoneId        String? // For zone-specific trackers
+  count         Int @default(0)
+  lastUpdated   DateTime @default(now())
+  
+  character     Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  
+  @@unique([characterId, trackerType, zoneId])
+}
+
+model ClassUnlockEvent {
+  id            String   @id @default(cuid())
+  characterId   String
+  classId       String
+  unlockType    String   // visible, hidden, mythical
+  conditionsMet String?   // JSON: what triggered the unlock
+  unlockedAt    DateTime @default(now())
+  isRevealed    Boolean  @default(false) // Has player discovered it yet?
+  
+  character     Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+}
+
+model Reputation {
+  id              String   @id @default(cuid())
+  characterId     String
+  factionId       String   // guild, city, order, criminal, etc.
+  value           Int      @default(0) // -100 to +100
+  rank            String   @default("neutral")
+  
+  character       Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  
+  @@unique([characterId, factionId])
+}
+
+model PlayerChoice {
+  id            String   @id @default(cuid())
+  characterId   String
+  choiceType    String   // oath, betrayal, sacrifice, discovery, etc.
+  choiceId      String   // specific choice identifier
+  consequence   String?  // what happened
+  isSecret      Boolean  @default(false)
+  madeAt        DateTime @default(now())
+  
+  character     Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+}
+
+model CharacterStats {
+  id          String    @id @default(cuid())
+  characterId String    @unique
+  
+  force       Int       @default(10)
+  agility     Int       @default(10)
+  vitality    Int       @default(10)
+  luck        Int       @default(10)
+  
+  character   Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+}
+
+model Skill {
+  id          String @id @default(cuid())
+  classId     String
+  name        String
+  description String
+  icon        String?
+  type        String
+  effect      String @default("{}")
+  cooldown    Int    @default(0)
+  manaCost    Int    @default(0)
+  dropRate    Float  @default(0.01)
+  
+  class       CharacterClass @relation(fields: [classId], references: [id])
+}
+
+model ItemBase {
+  id              String @id @default(cuid())
+  name            String
+  type            String                  // weapon, shield, helmet, armor, legs, accessory, mount
+  baseStats       String @default("{}")
+  levelReq        Int    @default(1)
+  modelUrl        String?
+  iconUrl         String?
+  defaultRarity   String @default("common")
+  
+  // Mount-specific fields
+  mountType       String?                  // horse, wyvern, griffon, etc.
+  mountSpeed      Int?                     // Speed bonus (10-50)
+  
+  items           Item[]
+}
+
+model ItemPrefix {
+  id          String @id @default(cuid())
+  name        String
+  bonuses     String @default("{}")
+  rarity      String
+  
+  items       Item[] @relation("Prefix")
+}
+
+model ItemSuffix {
+  id          String @id @default(cuid())
+  name        String
+  bonuses     String @default("{}")
+  rarity      String
+  
+  items       Item[] @relation("Suffix")
+}
+
+model ItemRarity {
+  id              String @id @default(cuid())
+  name            String @unique
+  color           String
+  statMultiplier  Float  @default(1.0)
+  bonusStats      String @default("{}")
+  dropRate        Float  @default(0)
+  
+  items           Item[]
+}
+
+model Item {
+  id          String @id @default(cuid())
+  baseItemId  String
+  prefixId    String?
+  suffixId    String?
+  rarityId    String
+  finalStats  String @default("{}")
+  isUnique    Boolean @default(false)
+  uniqueOwner String?
+  uniqueName  String?
+  itemLevel   Int    @default(1)
+  source      String?
+  droppedBy   String?
+  craftedBy   String?
+  marketPrice Int?
+  createdAt   DateTime @default(now())
+  
+  baseItem    ItemBase @relation(fields: [baseItemId], references: [id])
+  prefix      ItemPrefix? @relation("Prefix", fields: [prefixId], references: [id])
+  suffix      ItemSuffix? @relation("Suffix", fields: [suffixId], references: [id])
+  rarity      ItemRarity @relation(fields: [rarityId], references: [id])
+  
+  inventory   InventoryItem[]
+  marketListing MarketListing[]
+}
+
+model InventoryItem {
+  id          String    @id @default(cuid())
+  characterId String
+  itemId      String
+  slot        Int
+  quantity    Int       @default(1)
+  createdAt   DateTime  @default(now())
+  
+  character   Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  item        Item      @relation(fields: [itemId], references: [id])
+  
+  @@unique([characterId, slot])
+}
+
+model Zone {
+  id          String @id @default(cuid())
+  name        String
+  slug        String
+  cityId      String
+  city        City   @relation(fields: [cityId], references: [id])
+  worldX      Int    @default(0)
+  worldY      Int    @default(0)
+  minLevel    Int    @default(1)
+  maxLevel    Int    @default(10)
+  difficulty  String @default("normal")
+  description String?
+  isHidden    Boolean @default(false)
+  unlockCondition String?
+  hiddenRoute String?
+  
+  // ============ REGIONAL STRUCTURE ============
+  zoneType    String   @default("proche") // proche, intermediaire, dangereuse, donjon
+  dangerScore Int      @default(1) // 1-10
+  corruptionType String? // sel, vegetale, arcane, etc.
+  
+  // ============ DANGER PARAMETERS ============
+  baseDamageType      String @default("physical")  // physical, fire, ice, poison, chaos
+  environmentalHazard  Boolean @default(false)
+  hasCorruption       Boolean @default(false)
+  healAvailability   Int     @default(50)           // 0-100 resources available
+  enemyAggroRange    Int     @default(10)
+  
+  // ============ REWARDS ============
+  rareLootChance     Float  @default(0.01)
+  goldMultiplier     Float  @default(1.0)
+  xpMultiplier       Float  @default(1.0)
+  itemDropRate       Float  @default(1.0)
+  
+  // ============ GAMEPLAY ============
+  trapDensity         Float  @default(0.0)
+  travelTimeSeconds   Int    @default(300)
+  isHub              Boolean @default(false)
+  nearestSafePoint   String?
+    
+  enemies     ZoneEnemy[]
+  treasureChests TreasureChest[]
+  microZones   MicroZone[]
+}
+
+model ZoneEnemy {
+  id          String @id @default(cuid())
+  zoneId      String
+  name        String
+  level       Int
+  hp          Int
+  attack      Int
+  defense     Int
+  xpReward    Int
+  goldReward  Int
+  spawnWeight Int    @default(1)
+  isElite     Boolean @default(false)
+  isBoss      Boolean @default(false)
+  enemyType   String @default("normal") // normal, undead, beast, human, elemental, demon
+  
+  zone        Zone    @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+}
+
+model TreasureChest {
+  id                String @id @default(cuid())
+  zoneId            String
+  name              String
+  description       String?
+  minGold           Int    @default(10)
+  maxGold           Int    @default(50)
+  minItems          Int    @default(0)
+  maxItems          Int    @default(1)
+  rarity            String @default("common") // common, uncommon, rare, epic, legendary
+  isHidden          Boolean @default(false)
+  unlockCondition   String? // JSON: conditions to find this chest
+  minPlayerLevel    Int     @default(1)
+  
+  zone              Zone   @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+  
+  @@unique([zoneId, name])
+}
+
+model MicroZone {
+  id          String   @id @default(cuid())
+  zoneId      String
+  zone        Zone     @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+  
+  name        String
+  description String?
+  type        String   @default("plain") // plain, forest, cave, beach, ruins, swamp, volcano, ice, desert
+  dangerLevel Int      @default(1) // 1-5 relative danger within zone
+  
+  // Rotation system
+  rotationGroup Int    @default(0) // 0 = always shown, 1-5 = rotates
+  isActive     Boolean @default(true)
+  
+  // Content
+  enemyTypes   String  @default("[]")  // JSON array of enemy types
+  enemyCount   Int     @default(1) // 1-5 enemies
+  isElite      Boolean @default(false)
+  
+  // Loot & Chests
+  hasChest     Boolean @default(false)
+  chestRarity  String  @default("common") // common, uncommon, rare, epic, legendary
+  isHiddenChest Boolean @default(false) // chest requires special action
+  chestUnlockHint String? // hint to find hidden chest
+  
+  // Secrets
+  hasSecret    Boolean @default(false)
+  secretType   String  @default("hint") // hint, interaction, rare_spawn, hidden_room
+  secretHint   String?
+  secretAction String? // action needed to discover
+  
+  // Boss aléatoire
+  canSpawnBoss Boolean @default(false)
+  bossName     String?
+  bossLevel    Int?
+  bossHp       Int?
+  bossAttack   Int?
+  bossDefense  Int?
+  bossDamage   String? // damage type
+  bossLoot     String? // JSON reward
+  bossSpawnChance Float @default(0.05) // 5% chance after N visits
+  
+  // Micro-donjon secret
+  isMicroDungeon Boolean @default(false)
+  microDungeonEntry String? // entry requirement
+  microDungeonRooms Int @default(3) // number of rooms
+  microDungeonDifficulty Int @default(1)
+  
+  // Environmental
+  baseDamageType String @default("physical")
+  hasCorruption  Boolean @default(false)
+  corruptionType String?
+  
+  // Position in micro-zone
+  visitOrder   Int     @default(0) // Order of visits to discover
+  
+  createdAt    DateTime @default(now())
+  
+  @@unique([zoneId, name])
+}
+
+model Guild {
+  id          String @id @default(cuid())
+  name        String @unique
+  description String?
+  leaderId    String
+  gold        Int    @default(0)
+  level       Int    @default(1)
+  xp          Int    @default(0)
+  buildings   String @default("{}")
+  activeBuffs String @default("[]")
+  ranking     Int?
+  createdAt   DateTime @default(now())
+  
+  members     GuildMember[]
+}
+
+model GuildMember {
+  id              String @id @default(cuid())
+  guildId         String
+  characterId     String @unique
+  role            String @default("member")
+  contributedGold Int    @default(0)
+  joinedAt        DateTime @default(now())
+  
+  guild       Guild     @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  character   Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+}
+
+model GuildChat {
+  id              String @id @default(cuid())
+  guildId         String
+  characterId     String
+  characterName   String
+  message         String
+  sentAt          DateTime @default(now())
+}
+
+model MarketListing {
+  id          String    @id @default(cuid())
+  sellerId    String
+  itemId      String
+  price       Int
+  status      String    @default("active")
+  createdAt   DateTime  @default(now())
+  soldAt      DateTime?
+  
+  item        Item      @relation(fields: [itemId], references: [id])
+}
+
+model Quest {
+  id          String @id @default(cuid())
+  name        String
+  description String
+  type        String
+  cityId      String?
+  city        City?   @relation(fields: [cityId], references: [id])
+  factionId   String?
+  faction     Faction? @relation(fields: [factionId], references: [id])
+  conditions  String @default("{}")
+  rewards     String @default("{}")
+  resetTime   String?
+  isActive    Boolean @default(true)
+  isSecret    Boolean @default(false)
+}
+
+model QuestProgress {
+  id              String    @id @default(cuid())
+  characterId     String
+  questId         String
+  currentProgress Int       @default(0)
+  target          Int
+  completed       Boolean   @default(false)
+  claimed         Boolean   @default(false)
+  resetAt         DateTime?
+  
+  character       Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  
+  @@unique([characterId, questId])
+}
+
+model ArenaMatch {
+  id                  String @id @default(cuid())
+  attackerId          String
+  defenderId          String
+  winnerId            String?
+  attackerDamageDealt Int    @default(0)
+  defenderDamageDealt Int    @default(0)
+  replay              String @default("[]")
+  attackerEloBefore  Int    @default(1000)
+  attackerEloAfter    Int    @default(1000)
+  defenderEloBefore  Int    @default(1000)
+  defenderEloAfter   Int    @default(1000)
+  foughtAt           DateTime @default(now())
+}
+
+model ArenaRanking {
+  id              String   @id @default(cuid())
+  characterId     String   @unique
+  elo             Int      @default(1000)
+  rank            Int      @default(0)
+  wins            Int      @default(0)
+  losses          Int      @default(0)
+  updatedAt       DateTime @updatedAt
+}
+
+model Notification {
+  id          String   @id @default(cuid())
+  userId      String
+  type        String
+  title       String
+  message     String
+  data        String?  @default("{}")
+  read        Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Discovery {
+  id              String   @id @default(cuid())
+  characterId     String
+  type            String   // zone, item, npc, class, secret, anomaly
+  discoveryId     String   // ID of what was discovered
+  name            String
+  description     String?
+  hint            String?  // Cryptic hint that led to discovery
+  foundAt         DateTime @default(now())
+  
+  character       Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  
+  @@unique([characterId, type, discoveryId])
+}
+
+model ServerUniqueItem {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String
+  icon        String?
+  rarity      String   @default("legendary")
+  effect      String   @default("{}")
+  ownerId     String?  // Character who owns it (null = unclaimed)
+  claimedAt   DateTime?
+  createdAt   DateTime @default(now())
+}
+
+model ServerRecord {
+  id        String   @id @default(cuid())
+  type      String   // BOSS_KILL, ZONE_DISCOVERY, CHEST_OPEN
+  playerId  String
+  targetId  String?
+  zoneId    String?
+  timestamp DateTime @default(now())
+}
+
+model Bounty {
+  id          String   @id @default(cuid())
+  targetId    String
+  placerId    String
+  amount      Int
+  status      String   @default("ACTIVE") // ACTIVE, CLAIMED, EXPIRED
+  expiresAt   DateTime
+  claimedAt   DateTime?
+  claimedBy   String?
+  createdAt   DateTime @default(now())
+}
+
+model Faction {
+  id            String   @id @default(cuid())
+  name          String   @unique
+  description   String?
+  cityId        String?  // null = global faction
+  reputationMax Int      @default(100)
+  
+  cities        City[]
+  quests        Quest[]
+  titles        Title[]
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model City {
+  id              String   @id @default(cuid())
+  name            String
+  slug            String   @unique
+  description     String
+  theme           String   // maritime, forest, mountain, desert, ice, island
+  function        String   // commerce, combat, craft, secret
+  levelMin        Int      @default(1)
+  levelMax        Int      @default(20)
+  dangerProfile   String   // faible, moyen, eleve, extreme
+  dominantDamage String   // physical, fire, ice, poison, chaos
+  usefulResistance String // physical, fire, ice, poison, chaos
+  isHub           Boolean  @default(true)
+  orderIndex      Int      @default(0) // Pour affichage地图
+  
+  factionId       String?
+  faction         Faction? @relation(fields: [factionId], references: [id])
+  
+  zones           Zone[]
+  dungeons        Dungeon[]
+  secretZones     SecretZone[]
+  safePoints      SafePoint[]
+  quests          Quest[]
+  titles          Title[]
+  characters      Character[]
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model Dungeon {
+  id            String   @id @default(cuid())
+  name          String
+  slug          String
+  description   String
+  cityId        String
+  city          City     @relation(fields: [cityId], references: [id])
+  type          String   // standard, avance, special
+  level         Int
+  difficulty    Int      // 1-10
+  roomCount     Int      @default(3)
+  hasBoss       Boolean  @default(true)
+  bossName      String?
+  bossDamage    String?
+  bossHp        Int?
+  rewardItemId  String?  // Relic item ID
+  requirements  String?  // JSON: required conditions
+  chronicleKey  String?  // unique key for chronicles
+  
+  rooms         DungeonRoom[]
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model DungeonRoom {
+  id          String   @id @default(cuid())
+  dungeonId   String
+  dungeon     Dungeon  @relation(fields: [dungeonId], references: [id], onDelete: Cascade)
+  
+  roomIndex   Int      // 0 = entrance, 1+ = progression
+  name        String
+  description String?
+  type        String   @default("combat") // combat, treasure, rest, boss, choice
+  
+  // Enemies (JSON for flexibility)
+  enemies     String   @default("[]") // [{name, level, hp, attack, defense, xpReward, goldReward}]
+  enemyCount  Int      @default(1)
+  hasElite    Boolean  @default(false)
+  
+  // Treasure
+  hasChest    Boolean  @default(false)
+  chestRarity String   @default("common")
+  minGold     Int      @default(10)
+  maxGold     Int      @default(50)
+  
+  // Choices for branching
+  choiceText  String?  // "Turn left or right..."
+  choiceA     String?  // Description of choice A
+  choiceB     String?  // Description of choice B
+  roomAId     String?  // ID of room for choice A (for branching)
+  roomBId     String?  // ID of room for choice B
+  
+  // Rest point
+  isRestPoint Boolean  @default(false)
+  healAmount  Int       @default(20)
+  
+  // Boss
+  isBoss      Boolean  @default(false)
+  bossName    String?
+  bossHp      Int?
+  bossAttack  Int?
+  bossDefense Int?
+  bossDamage  String?  // damage type
+  bossLoot    String?  // JSON reward
+  
+  // Exit
+  isExit      Boolean  @default(false)
+  exitText    String?  // "You can leave the dungeon here"
+  
+  @@unique([dungeonId, roomIndex])
+}
+
+model SecretZone {
+  id            String   @id @default(cuid())
+  name          String
+  description   String
+  cityId        String
+  city          City     @relation(fields: [cityId], references: [id])
+  discoveryType String   // chance, condition, quete, event
+  condition     String?  // item or title required
+  questId       String?  // Quest ID that unlocks this
+  rewardItemId  String?  // Reward item ID
+  isDiscovered  Boolean  @default(false)
+  discoveredAt  DateTime?
+  level         Int      @default(1)
+  dangerScore   Int      @default(1)
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model SafePoint {
+  id          String   @id @default(cuid())
+  name        String
+  type        String   // sanctuaire, avantposte, relais
+  cityId      String
+  city        City     @relation(fields: [cityId], references: [id])
+  zoneId      String?  // Zone this safe point is in
+  hasVendor   Boolean  @default(false)
+  hasCraft   Boolean  @default(false)
+  hasHeal    Boolean  @default(true)
+  travelPoint Boolean  @default(true)
+  orderIndex  Int      @default(0)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Title {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  type        String   // combat, exploration, craft, city, secret
+  bonus       String   @default("{}") // JSON bonuses
+  rarity      String   @default("common")
+  cityId      String?
+  city        City?    @relation(fields: [cityId], references: [id])
+  factionId   String?
+  faction     Faction? @relation(fields: [factionId], references: [id])
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model CharacterZoneState {
+  id            String   @id @default(cuid())
+  characterId   String
+  character     Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  zoneId        String
+  
+  // Rotation tracking
+  currentRotation Int    @default(1) // 1-5, which rotation group is active
+  
+  // Exploration state
+  visitedMicroZones String @default("[]") // JSON array of visited micro-zone names
+  discoveredSecrets  String @default("[]") // JSON array of discovered secrets
+  foundChests       String @default("[]") // JSON array of opened chest IDs
+  
+  // Enemy tracking
+  killedEnemies    String @default("[]") // JSON: [{type, count}]
+  lastEnemySpawn   DateTime?
+  
+  // Time-based events
+  lastVisitAt      DateTime?
+  visitCount       Int    @default(0)
+  
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  
+  @@unique([characterId, zoneId])
+}
+
+model CharacterDungeonState {
+  id            String   @id @default(cuid())
+  characterId   String
+  character     Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  dungeonId     String
+  
+  // Progression
+  currentRoomIndex Int   @default(0)
+  visitedRooms     String @default("[]") // JSON array of visited room IDs
+  roomHistory      String @default("[]") // JSON: [{roomId, choice, result}]
+  
+  // State
+  isComplete     Boolean @default(false)
+  isFailed       Boolean @default(false)
+  isAbandoned    Boolean @default(false)
+  
+  // Rewards claimed
+  goldEarned     Int     @default(0)
+  xpEarned       Int     @default(0)
+  itemsEarned    String  @default("[]") // JSON array of item IDs
+  
+  // Boss state
+  bossDefeated   Boolean @default(false)
+  bossSpared     Boolean @default(false)
+  
+  startedAt      DateTime @default(now())
+  completedAt    DateTime?
+  
+  @@unique([characterId, dungeonId])
+}
