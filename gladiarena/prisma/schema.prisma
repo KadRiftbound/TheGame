@@ -77,6 +77,7 @@ model Character {
   currentZoneId String?
   currentCityId String?
   currentCity   City?    @relation(fields: [currentCityId], references: [id])
+  currentMicroZoneId String?  // Current micro-zone within the zone
   
   // Equipment slot IDs
   equippedWeapon    String?
@@ -451,9 +452,15 @@ model MicroZone {
   zone        Zone     @relation(fields: [zoneId], references: [id], onDelete: Cascade)
   
   name        String
+  slug        String?
   description String?
   type        String   @default("plain") // plain, forest, cave, beach, ruins, swamp, volcano, ice, desert
   dangerLevel Int      @default(1) // 1-5 relative danger within zone
+  
+  // Local exploration system
+  connections String   @default("[]") // JSON array of micro-zone IDs this zone connects to
+  positionX   Float    @default(0.5) // 0-1 position on local map
+  positionY   Float    @default(0.5) // 0-1 position on local map
   
   // Rotation system
   rotationGroup Int    @default(0) // 0 = always shown, 1-5 = rotates

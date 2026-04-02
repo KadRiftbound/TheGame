@@ -173,6 +173,12 @@ export default function GamePage() {
   const [playerStats, setPlayerStats] = useState<any>(null)
   const [microZones, setMicroZones] = useState<any[]>([])
   const [exploringZone, setExploringZone] = useState<any>(null)
+  const [currentMicroZone, setCurrentMicroZone] = useState<any>(null)
+  const [isLocalTraveling, setIsLocalTraveling] = useState(false)
+  const [localTravelProgress, setLocalTravelProgress] = useState(0)
+  const [localTravelTarget, setLocalTravelTarget] = useState<any>(null)
+  const [localTravelStartTime, setLocalTravelStartTime] = useState(0)
+  const [localTravelDuration, setLocalTravelDuration] = useState(0)
   const [dungeons, setDungeons] = useState<any[]>([])
   const [selectedDungeon, setSelectedDungeon] = useState<any>(null)
   const [dungeonState, setDungeonState] = useState<any>(null)
@@ -326,6 +332,28 @@ export default function GamePage() {
     return () => clearInterval(interval)
   }, [isTraveling, travelStartTime, travelDuration])
 
+  // Local travel timer effect
+  useEffect(() => {
+    if (!isLocalTraveling) return
+    
+    const interval = setInterval(() => {
+      const elapsed = Date.now() - localTravelStartTime
+      const progress = Math.min(elapsed / localTravelDuration, 1)
+      setLocalTravelProgress(progress)
+      
+      if (progress >= 1) {
+        setIsLocalTraveling(false)
+        setCurrentMicroZone(localTravelTarget)
+        setLocalTravelTarget(null)
+        setLocalTravelProgress(0)
+        // Rafraîchir les données de la zone
+        handleExplore(exploringZone)
+      }
+    }, 100)
+    
+    return () => clearInterval(interval)
+  }, [isLocalTraveling, localTravelStartTime, localTravelDuration, localTravelTarget, exploringZone])
+
   const handleCombat = async (zone: Zone) => {
     const token = localStorage.getItem('token')
     if (!token || !character) return
@@ -412,6 +440,10 @@ const data = await res.json()
       if (res.ok) {
         setExploringZone(zone)
         setMicroZones(data.microZones || [])
+        // Set first micro-zone as current when entering a zone
+        if (data.microZones && data.microZones.length > 0) {
+          setCurrentMicroZone(data.microZones[0])
+        }
       }
     } catch (err) { console.error('Explore error:', err) }
   }
@@ -1252,7 +1284,25 @@ const data = await res.json()
                     <ZoneMap 
                       zoneName={exploringZone.name}
                       microZones={microZones}
-                      onSelect={(mz) => handleVisitMicroZone(mz, 'explore')}
+                      currentMicroZoneId={currentMicroZone?.id || null}
+                      onSelect={(mz) => {
+                        if (mz.id === currentMicroZone?.id) {
+                          // Already here - explore this micro-zone
+                          handleVisitMicroZone(mz, 'explore')
+                        } else {
+                          // Travel to another micro-zone
+                          const currentMZ = currentMicroZone || microZones[0]
+                          const distance = Math.sqrt(
+                            Math.pow((mz.positionX || 0.5) - (currentMZ?.positionX || 0.5), 2) +
+                            Math.pow((mz.positionY || 0.5) - (currentMZ?.positionY || 0.5), 2)
+                          )
+                          const travelTime = Math.max(3000, Math.min(15000, Math.round(distance * 15000)))
+                          setLocalTravelTarget(mz)
+                          setLocalTravelStartTime(Date.now())
+                          setLocalTravelDuration(travelTime)
+                          setIsLocalTraveling(true)
+                        }
+                      }}
                     />
                   </div>
 
@@ -2417,6 +2467,32 @@ const data = await res.json()
             >
               Annuler (retour ville)
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Local Travel Modal */}
+      {isLocalTraveling && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
+          <div className="bg-gray-900 p-6 rounded-2xl border border-green-600 max-w-sm w-full">
+            <h2 className="text-xl font-bold text-center mb-2 text-green-400">
+              🏃 Déplacement local
+            </h2>
+            
+            <div className="mb-2 text-center text-amber-300 font-bold">
+              Vers: {localTravelTarget?.name || '...'}
+            </div>
+            
+            <div className="h-3 bg-gray-800 rounded-full overflow-hidden mb-3">
+              <div 
+                className="h-full bg-green-600 transition-all duration-100"
+                style={{ width: `${localTravelProgress * 100}%` }}
+              />
+            </div>
+            
+            <div className="text-center text-gray-400 text-sm">
+              {Math.ceil((localTravelDuration * (1 - localTravelProgress)) / 1000)}s
+            </div>
           </div>
         </div>
       )}
