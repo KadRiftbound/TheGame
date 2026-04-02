@@ -62,8 +62,6 @@ export default function ZoneMap({ zoneName, microZones, onSelect, currentMicroZo
         {microZones.map(mz => {
           if (!mz.connections || mz.connections.length === 0) return null
           
-          const currentMZ = currentMicroZoneId ? microZones.find(m => m.id === currentMicroZoneId) : null
-          const currentConnections = currentMZ?.connections || []
           const isFromCurrent = mz.id === currentMicroZoneId
           
           return mz.connections.map(connId => {
@@ -95,9 +93,10 @@ export default function ZoneMap({ zoneName, microZones, onSelect, currentMicroZo
         const posX = mz.positionX !== undefined ? mz.positionX * 100 : undefined
         const posY = mz.positionY !== undefined ? mz.positionY * 100 : undefined
         
-        const currentMZ = currentMicroZoneId ? microZones.find(m => m.id === currentMicroZoneId) : null
         const isCurrent = mz.id === currentMicroZoneId
-        const isAccessible = currentMZ?.connections?.includes(mz.id) || isCurrent
+        const currentMZ = microZones.find(m => m.id === currentMicroZoneId)
+        const currentConnections = currentMZ?.connections || []
+        const isAccessible = isCurrent || currentConnections.includes(mz.id)
         
         return (
           <div
