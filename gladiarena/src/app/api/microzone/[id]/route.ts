@@ -168,8 +168,9 @@ export async function GET(
     })
   } catch (error: any) {
     console.error('Microzone API error:', error)
+    console.error('Stack:', error.stack)
     return NextResponse.json(
-      { error: `Erreur: ${error?.message || error}` },
+      { error: `Erreur: ${error?.message || error}`, stack: error.stack },
       { status: 500 }
     )
   }
