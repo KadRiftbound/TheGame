@@ -69,16 +69,19 @@ export async function GET(
     
     // Get connected micro-zones
     const connections = JSON.parse(microZone.connections || '[]')
-    const connectedMicroZones = await prisma.microZone.findMany({
-      where: { id: { in: connections } },
-      select: {
-        id: true,
-        name: true,
-        dangerLevel: true,
-        positionX: true,
-        positionY: true
-      }
-    })
+    let connectedMicroZones: any[] = []
+    if (connections.length > 0) {
+      connectedMicroZones = await prisma.microZone.findMany({
+        where: { id: { in: connections } },
+        select: {
+          id: true,
+          name: true,
+          dangerLevel: true,
+          positionX: true,
+          positionY: true
+        }
+      })
+    }
     
     // Calculate travel times for connections
     const travelTimes = connectedMicroZones.map(cmz => {
