@@ -202,7 +202,7 @@ export default function RegisterPage() {
             </div>
 
             <div>
-              <label className="block text-gray-300 mb-4">Choisir ton origine</label>
+              <label className="block text-gray-300 mb-4">Choisir ton origine ({origins.length} disponibles)</label>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
                 {origins.map((origin) => {
                   const bonuses = JSON.parse(origin.bonuses || '{}')

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import WorldMap from '@/components/WorldMap'
 import CityMap from '@/components/CityMap'
+import ZoneMap from '@/components/ZoneMap'
 import GameSocialPanel from '@/components/GameSocialPanel'
 
 interface Item {
@@ -39,6 +40,8 @@ interface Character {
   corruptionLevel: number
   fatigue: number
   wounds: string
+  currentZoneId?: string | null
+  currentCityId?: string | null
   currentMount?: string | null
   mountSpeedBonus?: number
   equippedWeapon?: string | null
@@ -171,6 +174,12 @@ export default function GamePage() {
   const [selectedDungeon, setSelectedDungeon] = useState<any>(null)
   const [dungeonState, setDungeonState] = useState<any>(null)
   const [inDungeon, setInDungeon] = useState(false)
+  const [isTraveling, setIsTraveling] = useState(false)
+  const [travelProgress, setTravelProgress] = useState(0)
+  const [travelingToZone, setTravelingToZone] = useState<any>(null)
+  const [travelStartTime, setTravelStartTime] = useState(0)
+  const [travelDuration, setTravelDuration] = useState(0)
+  const [isReturningFromDeath, setIsReturningFromDeath] = useState(false)
   const router = useRouter()
 
   const fetchQuests = async (token: string) => {
@@ -292,6 +301,27 @@ export default function GamePage() {
     localStorage.removeItem('user')
     router.push('/auth/login')
   }
+
+  // Travel timer effect
+  useEffect(() => {
+    if (!isTraveling) return
+    
+    const interval = setInterval(() => {
+      const elapsed = Date.now() - travelStartTime
+      const progress = Math.min(elapsed / travelDuration, 1)
+      setTravelProgress(progress)
+      
+      if (progress >= 1) {
+        setIsTraveling(false)
+        setIsReturningFromDeath(false)
+        setActiveTab('fight')
+        setTravelingToZone(null)
+        setTravelProgress(0)
+      }
+    }, 100)
+    
+    return () => clearInterval(interval)
+  }, [isTraveling, travelStartTime, travelDuration])
 
   const handleCombat = async (zone: Zone) => {
     const token = localStorage.getItem('token')
@@ -888,8 +918,11 @@ const data = await res.json()
                     onSelectZone={(zone) => {
                       const found = cityData?.zones?.find(z => z.id === zone.id)
                       if (found) {
-                        setSelectedZone(found)
-                        setActiveTab('fight')
+                        setTravelingToZone(found)
+                        setTravelDuration((found.travelTimeSeconds || 180) * 1000)
+                        setTravelStartTime(Date.now())
+                        setIsTraveling(true)
+                        setTravelProgress(0)
                       }
                     }}
                   />
@@ -968,22 +1001,25 @@ const data = await res.json()
               </div>
 
               <h2 className="text-xl font-bold mb-4 text-gray-300">🚩 Zones d'Aventure</h2>
-              
+               
               {/* Return to City Button */}
               <div className="mb-4 flex justify-end">
                 <button 
                   onClick={async () => {
                     const token = localStorage.getItem('token')
                     if (!token) return
+                    const zone = zones.find(z => z.id === character.currentZoneId)
+                    const time = (zone?.travelTimeSeconds || 180) * 1000
+                    setIsTraveling(true)
+                    setTravelDuration(time)
+                    setTravelStartTime(Date.now())
+                    setTravelingToZone(null)
+                    setTravelProgress(0)
                     await fetch('/api/travel', {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                       body: JSON.stringify({ action: 'return_to_city' })
                     })
-                    setActiveTab('city')
-                    fetch('/api/character', { headers: { 'Authorization': `Bearer ${token}` } })
-                      .then(res => res.json())
-                      .then(data => setCharacter(data.character))
                   }}
                   className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg font-bold"
                 >
@@ -1199,81 +1235,11 @@ const data = await res.json()
                     ← Retour aux zones
                   </button>
                   
-                  <div className="bg-gray-900/50 rounded-xl p-4 mb-4 border border-gray-700">
-                    <h3 className="text-lg font-bold text-green-400">{exploringZone.name}</h3>
-                    <p className="text-gray-400 text-sm">{exploringZone.description}</p>
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-4">
-                    {microZones.map(mz => (
-                      <div 
-                        key={mz.id}
-                        className={`rounded-xl p-4 border-2 transition-all ${
-                          mz.isVisited 
-                            ? 'bg-gray-900/30 border-gray-700 opacity-60' 
-                            : 'bg-gray-900/50 border-green-700 hover:border-green-500'
-                        }`}
-                      >
-                        <div className="flex items-start justify-between">
-                          <div>
-                            <div className="font-bold text-lg">
-                              {mz.isVisited && <span className="text-gray-500">✓ </span>}
-                              {mz.name}
-                            </div>
-                            <div className="text-gray-500 text-sm">{mz.description}</div>
-                            <div className="flex items-center gap-2 mt-2">
-                              <span className={`text-xs px-2 py-0.5 rounded ${
-                                mz.dangerLevel === 1 ? 'bg-green-900/50 text-green-300' :
-                                mz.dangerLevel === 2 ? 'bg-yellow-900/50 text-yellow-300' :
-                                mz.dangerLevel === 3 ? 'bg-orange-900/50 text-orange-300' :
-                                'bg-red-900/50 text-red-300'
-                              }`}>
-                                Danger: {mz.dangerLevel}/5
-                              </span>
-                              <span className="text-xs text-gray-500 capitalize">{mz.type}</span>
-                              {mz.hasChest && (
-                                <span className="text-xs text-amber-400">🎁 Coffre</span>
-                              )}
-                              {mz.hasSecret && (
-                                <span className="text-xs text-purple-400">🔮 Secret</span>
-                              )}
-                              {mz.canSpawnBoss && (
-                                <span className="text-xs text-red-400">👹 Boss</span>
-                              )}
-                              {mz.isElite && (
-                                <span className="text-xs text-orange-400">⚔️ Elite</span>
-                              )}
-                              {mz.isMicroDungeon && (
-                                <span className="text-xs text-blue-400">🏰 Donjon</span>
-                              )}
-                            </div>
-                          </div>
-                          <button 
-                            onClick={() => handleVisitMicroZone(mz, 'explore')}
-                            className="px-3 py-1 bg-green-600 hover:bg-green-500 rounded-lg text-sm font-bold"
-                          >
-                            Explorer
-                          </button>
-                        </div>
-                        {mz.hasChest && (
-                          <button 
-                            onClick={() => handleVisitMicroZone(mz, 'openChest')}
-                            className="mt-2 w-full py-1 bg-amber-600 hover:bg-amber-500 rounded text-xs font-bold"
-                          >
-                            🎁 Ouvrir coffre
-                          </button>
-                        )}
-                        {mz.hasSecret && (
-                          <button 
-                            onClick={() => handleVisitMicroZone(mz, 'discoverSecret')}
-                            className="mt-2 w-full py-1 bg-purple-600 hover:bg-purple-500 rounded text-xs font-bold"
-                          >
-                            🔮 Découvrir secret
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
+                  <ZoneMap 
+                    zoneName={exploringZone.name}
+                    microZones={microZones}
+                    onSelect={(mz) => handleVisitMicroZone(mz, 'explore')}
+                  />
                 </div>
               )}
             </div>
@@ -2373,10 +2339,61 @@ const data = await res.json()
             )}
 
             <button 
-              onClick={() => setCombatResult(null)} 
+              onClick={() => {
+                if (!combatResult.victory) {
+                  const zone = zones.find(z => z.id === character.currentZoneId)
+                  const time = ((zone?.travelTimeSeconds || 180) * 1000) * 2
+                  setCombatResult(null)
+                  setIsTraveling(true)
+                  setIsReturningFromDeath(true)
+                  setTravelDuration(time)
+                  setTravelStartTime(Date.now())
+                  setTravelingToZone(null)
+                  setTravelProgress(0)
+                } else {
+                  setCombatResult(null)
+                }
+              }} 
               className="w-full py-3 bg-amber-600 hover:bg-amber-500 rounded-xl font-bold"
             >
               Continuer
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Travel Modal */}
+      {isTraveling && (
+        <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-50">
+          <div className="bg-gray-900 p-8 rounded-2xl border border-amber-600 max-w-md w-full">
+            <h2 className="text-2xl font-bold text-center mb-4">
+              {isReturningFromDeath ? '💀 Retour au camp...' : '🚶 Voyage en cours'}
+            </h2>
+            
+            <div className="mb-2 text-center text-amber-400 font-bold">
+              {travelingToZone?.name || (isReturningFromDeath ? 'Vers la cité...' : 'En route')}
+            </div>
+            
+            <div className="h-4 bg-gray-800 rounded-full overflow-hidden mb-4">
+              <div 
+                className="h-full bg-amber-600 transition-all duration-100"
+                style={{ width: `${travelProgress * 100}%` }}
+              />
+            </div>
+            
+            <div className="text-center text-gray-400">
+              {Math.ceil((travelDuration * (1 - travelProgress)) / 1000)}s restantes
+            </div>
+            
+            <button
+              onClick={() => {
+                setIsTraveling(false)
+                setActiveTab('city')
+                setIsReturningFromDeath(false)
+              }}
+              className="w-full mt-4 py-2 bg-gray-700 hover:bg-gray-600 rounded"
+            >
+              Annuler (retour ville)
             </button>
           </div>
         </div>
