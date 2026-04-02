@@ -101,14 +101,12 @@ export default function ZoneMap({ zoneName, microZones, onSelect, currentMicroZo
         return (
           <div
             key={mz.id}
-            className={`absolute transform -translate-x-1/2 -translate-y-1/2 cursor-pointer group transition-all ${
-              isAccessible ? 'hover:scale-110' : 'cursor-not-allowed'
-            }`}
+            className="absolute transform -translate-x-1/2 -translate-y-1/2 cursor-pointer group hover:scale-110 transition-all"
             style={{
               top: posY !== undefined ? `${posY}%` : `${20 + index * 12}%`,
               left: posX !== undefined ? `${posX}%` : `${30 + (index % 3) * 20}%`
             }}
-            onClick={() => isAccessible && onSelect(mz)}
+            onClick={() => onSelect(mz)}
           >
             <div className={`w-12 h-12 rounded-full border-2 border-white shadow-lg flex items-center justify-center transition-all ${
               getDangerColor(mz.dangerLevel, isCurrent, isAccessible)

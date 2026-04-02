@@ -1356,22 +1356,8 @@ const data = await res.json()
                       microZones={microZones}
                       currentMicroZoneId={currentMicroZone?.id || null}
                       onSelect={(mz) => {
-                        if (mz.id === currentMicroZone?.id) {
-                          // Already here - show micro-zone detail page
-                          fetchMicroZoneDetail(mz.id)
-                        } else {
-                          // Travel to another micro-zone
-                          const currentMZ = currentMicroZone || microZones[0]
-                          const distance = Math.sqrt(
-                            Math.pow((mz.positionX || 0.5) - (currentMZ?.positionX || 0.5), 2) +
-                            Math.pow((mz.positionY || 0.5) - (currentMZ?.positionY || 0.5), 2)
-                          )
-                          const travelTime = Math.max(3000, Math.min(15000, Math.round(distance * 15000)))
-                          setLocalTravelTarget(mz)
-                          setLocalTravelStartTime(Date.now())
-                          setLocalTravelDuration(travelTime)
-                          setIsLocalTraveling(true)
-                        }
+                        // Always show micro-zone detail page
+                        fetchMicroZoneDetail(mz.id)
                       }}
                     />
                   </div>
