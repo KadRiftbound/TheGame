@@ -95,17 +95,22 @@ export async function GET(
       }
     })
     
-    // Build enemies list based on killed enemies
+    // Build enemies list - always show at least 4 enemies
     const enemyTypes = JSON.parse(microZone.enemyTypes || '[]')
     const enemies = []
     
+    // Ensure at least 4 enemies (or more based on enemyCount)
+    const minEnemies = Math.max(4, microZone.enemyCount || 4)
+    const maxEnemies = Math.max(minEnemies, 6) // Cap at 6
+    
     // Check if we have killed enemies for this micro-zone
     const mzKilledEnemies = killedEnemies.filter((e: any) => e.microZoneId === microZoneId)
+    const aliveCount = minEnemies - mzKilledEnemies.length
     
-    if (mzKilledEnemies.length < (microZone.enemyCount || 1)) {
+    if (aliveCount > 0) {
       // Add enemies based on enemyTypes
-      for (let i = 0; i < (microZone.enemyCount || 1) - mzKilledEnemies.length; i++) {
-        const enemyType = enemyTypes[i % enemyTypes.length] || 'monstre'
+      for (let i = 0; i < Math.min(aliveCount, maxEnemies); i++) {
+        const enemyType = enemyTypes[i % Math.max(enemyTypes.length, 1)] || 'Gobelin'
         const isElite = i === 0 && microZone.isElite
         
         enemies.push({

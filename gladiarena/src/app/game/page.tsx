@@ -130,6 +130,8 @@ interface CombatResult {
   replay: any[]
   rewards: { xp: number; gold: number; leveledUp: boolean; items?: any[] }
   character: Character
+  enemyDefeated?: boolean
+  defeatedEnemyId?: string
 }
 
 interface Quest {
@@ -518,13 +520,20 @@ const data = await res.json()
           enemyHp: enemy.hp,
           enemyAttack: enemy.attack,
           enemyDefense: enemy.defense,
-          isElite: enemy.isElite
+          isElite: enemy.isElite,
+          microZoneId: microZoneDetail.microZone.id
         })
       })
       const data = await res.json()
       if (res.ok) {
         setCombatResult(data)
         setCharacter(data.character)
+        
+        // If enemy defeated, refresh micro-zone after combat
+        if (data.enemyDefeated && microZoneDetail) {
+          // Will refresh when combat modal is closed
+        }
+        
         fetchQuests(localStorage.getItem('token')!)
       }
     } catch (err) { console.error('Combat error:', err) }
@@ -2419,7 +2428,7 @@ const data = await res.json()
 
       {/* Combat Result Modal */}
       {combatResult && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-60 p-4">
           <div className="bg-gray-900 rounded-2xl p-8 max-w-lg w-full border border-gray-700 animate-scale-in">
             <div className={`text-center mb-6 ${combatResult.victory ? 'text-green-400' : 'text-red-400'}`}>
               <div className={`text-6xl mb-2 ${combatResult.victory ? 'animate-bounce' : 'animate-shake'}`}>
@@ -2485,6 +2494,10 @@ const data = await res.json()
                   setTravelProgress(0)
                 } else {
                   setCombatResult(null)
+                  // Refresh micro-zone to update enemies
+                  if (microZoneDetail && combatResult.enemyDefeated) {
+                    fetchMicroZoneDetail(microZoneDetail.microZone.id)
+                  }
                 }
               }} 
               className="w-full py-3 bg-amber-600 hover:bg-amber-500 rounded-xl font-bold"

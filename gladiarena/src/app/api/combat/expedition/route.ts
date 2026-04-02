@@ -121,29 +121,43 @@ export async function POST(request: NextRequest) {
       
       // Update character
       if (victory) {
-        await prisma.character.update({
-          where: { id: character.id },
-          data: {
-            xp: character.xp + xpReward,
-            gold: character.gold + goldReward,
-            currentHp: playerCurrentHp
-          }
-        })
+        const newXp = character.xp + xpReward
+        const newGold = character.gold + goldReward
+        const newHp = Math.min(playerCurrentHp, playerMaxHp) // Don't exceed max HP
         
-        // Check level up
+        // Check level up BEFORE updating (need to calculate with new XP)
         const xpToNextLevel = character.level * 100 + 100
         let leveledUp = false
-        if (character.xp + xpReward >= xpToNextLevel) {
+        let newLevel = character.level
+        let newMaxHp = playerMaxHp
+        let finalHp = newHp
+        
+        if (newXp >= xpToNextLevel) {
+          newLevel = character.level + 1
+          newMaxHp = playerMaxHp + 10
+          finalHp = newMaxHp
+          leveledUp = true
+          
           await prisma.character.update({
             where: { id: character.id },
             data: {
-              level: character.level + 1,
-              unspentPoints: character.unspentPoints + 3,
-              maxHp: playerMaxHp + 10,
-              currentHp: playerMaxHp + 10
+              xp: newXp,
+              gold: newGold,
+              level: newLevel,
+              maxHp: newMaxHp,
+              currentHp: finalHp,
+              unspentPoints: character.unspentPoints + 3
             }
           })
-          leveledUp = true
+        } else {
+          await prisma.character.update({
+            where: { id: character.id },
+            data: {
+              xp: newXp,
+              gold: newGold,
+              currentHp: finalHp
+            }
+          })
         }
         
         // Get updated character
@@ -156,10 +170,12 @@ export async function POST(request: NextRequest) {
           victory: true,
           replay,
           rewards: { xp: xpReward, gold: goldReward, items: [], leveledUp },
-          character: updatedCharacter
+          character: updatedCharacter,
+          enemyDefeated: true,
+          defeatedEnemyId: enemyName
         })
       } else {
-        // Update HP on defeat
+        // Update HP on defeat - set to 1 not 0 to avoid death loop
         await prisma.character.update({
           where: { id: character.id },
           data: { currentHp: 1 }
@@ -169,7 +185,8 @@ export async function POST(request: NextRequest) {
           victory: false,
           replay,
           rewards: { xp: 0, gold: 0, items: [], leveledUp: false },
-          character
+          character,
+          enemyDefeated: false
         })
       }
     }
@@ -247,14 +264,37 @@ export async function POST(request: NextRequest) {
       const xpReward = Math.floor((selectedEnemy.level * 10 + 20) * (zone.xpMultiplier || 1))
       const goldReward = Math.floor((selectedEnemy.goldReward || 10) * (zone.goldMultiplier || 1))
       
-      await prisma.character.update({
-        where: { id: character.id },
-        data: {
-          xp: character.xp + xpReward,
-          gold: character.gold + goldReward,
-          currentHp: playerCurrentHp
-        }
-      })
+      const newXp = character.xp + xpReward
+      const newGold = character.gold + goldReward
+      const newHp = Math.min(playerCurrentHp, playerMaxHp) // Don't exceed max HP
+      
+      // Check level up
+      const xpToNextLevel = character.level * 100 + 100
+      let leveledUp = false
+      
+      if (newXp >= xpToNextLevel) {
+        leveledUp = true
+        await prisma.character.update({
+          where: { id: character.id },
+          data: {
+            xp: newXp,
+            gold: newGold,
+            level: character.level + 1,
+            maxHp: playerMaxHp + 10,
+            currentHp: playerMaxHp + 10,
+            unspentPoints: character.unspentPoints + 3
+          }
+        })
+      } else {
+        await prisma.character.update({
+          where: { id: character.id },
+          data: {
+            xp: newXp,
+            gold: newGold,
+            currentHp: newHp
+          }
+        })
+      }
       
       const updatedCharacter = await prisma.character.findUnique({
         where: { id: character.id },
@@ -264,7 +304,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         victory: true,
         replay: [...replay, { type: 'victory', description: 'Victoire!' }],
-        rewards: { xp: xpReward, gold: goldReward, items: [], leveledUp: false },
+        rewards: { xp: xpReward, gold: goldReward, items: [], leveledUp },
         character: updatedCharacter
       })
     } else {
