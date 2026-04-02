@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import WorldMap from '@/components/WorldMap'
 import CityMap from '@/components/CityMap'
+import GameSocialPanel from '@/components/GameSocialPanel'
 
 interface Item {
   id: string
@@ -153,6 +154,7 @@ export default function GamePage() {
   const [secrets, setSecrets] = useState<any[]>([])
   const [fate, setFate] = useState<any>(null)
   const [mapMode, setMapMode] = useState<'city' | 'world'>('world')
+  const [cityLayer, setCityLayer] = useState<'hub' | 'travel'>('hub')
   const [advancedClasses, setAdvancedClasses] = useState<any[]>([])
   const [serverUniques, setServerUniques] = useState<any[]>([])
   const [expandedZone, setExpandedZone] = useState<string | null>(null)
@@ -776,7 +778,29 @@ const data = await res.json()
                 </div>
               </div>
 
+              <div className="mb-6 bg-gray-900/50 rounded-xl p-3 border border-gray-700 flex items-center justify-between">
+                <div className="text-sm text-gray-300">
+                  Couche active: <span className="font-bold text-amber-400">{cityLayer === 'hub' ? 'Ville' : 'Déplacement vers zones'}</span>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => { setCityLayer('hub'); setMapMode('city') }}
+                    className={`px-3 py-1 rounded text-sm font-bold ${cityLayer === 'hub' ? 'bg-amber-600 text-white' : 'bg-gray-700 text-gray-400'}`}
+                  >
+                    🏰 Ville
+                  </button>
+                  <button
+                    onClick={() => { setCityLayer('travel'); setMapMode('world') }}
+                    className={`px-3 py-1 rounded text-sm font-bold ${cityLayer === 'travel' ? 'bg-green-600 text-white' : 'bg-gray-700 text-gray-400'}`}
+                  >
+                    🧭 Déplacement
+                  </button>
+                </div>
+              </div>
+
               {/* Merchants */}
+              {cityLayer === 'hub' && (
+              <>
               <h2 className="text-xl font-bold mb-4 text-gray-300">🏪 Marchands</h2>
               <div className="grid grid-cols-3 gap-4 mb-8">
                 {cityData?.merchants?.map(merchant => (
@@ -829,28 +853,26 @@ const data = await res.json()
                   </div>
                 ))}
               </div>
+              </>
+              )}
 
               {/* Interactive Map */}
               <div className="mb-6">
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-xl font-bold text-gray-300">🗺️ Carte du Monde</h2>
-                  <div className="flex gap-2">
-                    <button 
-                      onClick={() => setMapMode('world')}
-                      className={`px-3 py-1 rounded text-sm font-bold ${mapMode === 'world' ? 'bg-amber-600 text-white' : 'bg-gray-700 text-gray-400'}`}
-                    >
-                      Monde
-                    </button>
-                    <button 
-                      onClick={() => setMapMode('city')}
-                      className={`px-3 py-1 rounded text-sm font-bold ${mapMode === 'city' ? 'bg-amber-600 text-white' : 'bg-gray-700 text-gray-400'}`}
-                    >
-                      Cité
-                    </button>
-                  </div>
+                  <h2 className="text-xl font-bold text-gray-300">{cityLayer === 'hub' ? '🏙️ Carte de la Cité' : '🗺️ Carte du Monde'}</h2>
                 </div>
 
-                {mapMode === 'world' ? (
+                {cityLayer === 'travel' ? (
+                  <p className="text-sm text-gray-400 mb-3">
+                    Étape 1/3: Choisissez une zone sur la carte. Étape 2/3: combattez dans l'onglet Zones. Étape 3/3: explorez les micro-zones.
+                  </p>
+                ) : (
+                  <p className="text-sm text-gray-400 mb-3">
+                    Vous êtes en ville: utilisez les marchands et préparez votre équipement avant de partir.
+                  </p>
+                )}
+
+                {cityLayer === 'travel' ? (
                   <WorldMap 
                     zones={cityData?.zones?.map(z => ({
                       id: z.id,
@@ -1098,18 +1120,30 @@ const data = await res.json()
                           )}
                         </div>
                         {!combatLoading && (
-                          <button 
-                            onClick={(e) => { e.stopPropagation(); handleCombat(zone) }}
-                            className={`ml-4 px-6 py-3 rounded-xl font-bold transition ${
-                              hasHighRisk 
-                                ? 'bg-red-700 hover:bg-red-600' 
-                                : hasMediumRisk
-                                  ? 'bg-orange-700 hover:bg-orange-600'
-                                  : 'bg-amber-600 hover:bg-amber-500'
-                            }`}
-                          >
-                            {hasHighRisk ? '⚠️ Danger!' : hasMediumRisk ? '⚡ Risque!' : '⚔️ Combattre'}
-                          </button>
+                          <div className="ml-4 flex flex-col gap-2">
+                            <button 
+                              onClick={(e) => { e.stopPropagation(); handleCombat(zone) }}
+                              className={`px-6 py-3 rounded-xl font-bold transition ${
+                                hasHighRisk 
+                                  ? 'bg-red-700 hover:bg-red-600' 
+                                  : hasMediumRisk
+                                    ? 'bg-orange-700 hover:bg-orange-600'
+                                    : 'bg-amber-600 hover:bg-amber-500'
+                              }`}
+                            >
+                              {hasHighRisk ? '⚠️ Danger!' : hasMediumRisk ? '⚡ Risque!' : '⚔️ Combattre'}
+                            </button>
+                            <button
+                              onClick={async (e) => {
+                                e.stopPropagation()
+                                await handleExplore(zone)
+                                setActiveTab('explore')
+                              }}
+                              className="px-4 py-2 rounded-lg bg-green-700 hover:bg-green-600 font-bold text-sm"
+                            >
+                              🧭 Sous-zones
+                            </button>
+                          </div>
                         )}
                         {combatLoading && (
                           <div className="ml-4 px-6 py-3 bg-amber-700 rounded-xl font-bold animate-pulse">
@@ -2023,103 +2057,23 @@ const data = await res.json()
             </div>
           )}
 
-          {/* Titles Tab */}
+          {/* Social Tabs */}
           {activeTab === 'titles' && (
-            <div className="max-w-4xl mx-auto">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-bold">🏆 Titres</h2>
-                <div className="text-amber-400 font-bold">
-                  {titles.length} / {allTitles.length}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {allTitles.map(title => (
-                  <div
-                    key={title.id}
-                    className={`rounded-xl p-4 border-2 transition-all ${
-                      title.earned 
-                        ? 'bg-gradient-to-br from-amber-900/30 to-gray-900 border-amber-500/50' 
-                        : 'bg-gray-900/50 border-gray-800 opacity-60'
-                    }`}
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl ${
-                        title.earned ? 'bg-amber-600/30' : 'bg-gray-800'
-                      }`}>
-                        {title.icon}
-                      </div>
-                      <div>
-                        <div className={`font-bold text-lg ${title.earned ? 'text-amber-400' : 'text-gray-400'}`}>
-                          {title.name}
-                        </div>
-                        {title.earned && (
-                          <span className="text-green-400 text-xs">✓ Obtenu</span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {titles.length === 0 && (
-                <div className="text-center py-16 text-gray-500">
-                  <div className="text-6xl mb-4">🏆</div>
-                  <p className="text-lg">Aucun titre obtenu</p>
-                  <p className="text-sm mt-2">Combattez et accomplissez des hauts faits pour gagner des titres!</p>
-                </div>
-              )}
-            </div>
+            <GameSocialPanel
+              mode="titles"
+              titles={titles}
+              allTitles={allTitles}
+              chronicles={chronicles}
+            />
           )}
 
-          {/* Chronicles Tab */}
           {activeTab === 'chronicles' && (
-            <div className="max-w-4xl mx-auto">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-bold">📜 Chroniques du Serveur</h2>
-                <div className="text-amber-400 font-bold">
-                  {chronicles.length} événements
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                {chronicles.map((record: any) => (
-                  <div key={record.id} className="bg-gray-900/50 rounded-xl p-4 border border-gray-700">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-xl ${
-                          record.type === 'BOSS_KILL' ? 'bg-red-900/50' : 
-                          record.type === 'ZONE_DISCOVERY' ? 'bg-purple-900/50' :
-                          'bg-amber-900/50'
-                        }`}>
-                          {record.type === 'BOSS_KILL' ? '💀' : 
-                           record.type === 'ZONE_DISCOVERY' ? '🗺️' : '🎁'}
-                        </div>
-                        <div>
-                          <div className="font-bold text-amber-400">{record.playerName}</div>
-                          <div className="text-sm text-gray-400">
-                            {record.type === 'BOSS_KILL' && `A vaincu ${record.targetName}`}
-                            {record.type === 'ZONE_DISCOVERY' && `A découvert ${record.zoneName}`}
-                            {record.type === 'CHEST_OPEN' && `A ouvert un coffre ${record.zoneName ? `dans ${record.zoneName}` : ''}`}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        {new Date(record.timestamp).toLocaleString('fr-FR')}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {chronicles.length === 0 && (
-                <div className="text-center py-16 text-gray-500">
-                  <div className="text-6xl mb-4">📜</div>
-                  <p className="text-lg">Aucune entrée dans les Chroniques</p>
-                  <p className="text-sm mt-2">Soyez le premier à accomplir des hauts faits!</p>
-                </div>
-              )}
-            </div>
+            <GameSocialPanel
+              mode="chronicles"
+              titles={titles}
+              allTitles={allTitles}
+              chronicles={chronicles}
+            />
           )}
 
           {/* Factions Tab */}
