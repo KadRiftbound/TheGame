@@ -483,6 +483,7 @@ const data = await res.json()
   }
 
   const fetchMicroZoneDetail = async (microZoneId: string) => {
+    console.log('Fetching microzone:', microZoneId)
     const token = localStorage.getItem('token')
     if (!token) return
     
@@ -490,12 +491,16 @@ const data = await res.json()
       const res = await fetch(`/api/microzone/${microZoneId}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       })
+      console.log('Response status:', res.status)
       const data = await res.json()
+      console.log('Response data:', data)
       if (res.ok) {
         setMicroZoneDetail(data)
         setShowMicroZonePage(true)
       }
-    } catch (err) { console.error('MicroZone detail error:', err) }
+    } catch (err) { 
+      console.error('MicroZone detail error:', err)
+    }
   }
 
   const handleCombatInMicroZone = async (enemy: any) => {
