@@ -4,6 +4,10 @@ interface MicroZone {
   description?: string
   dangerLevel: number
   type: string
+  hasChest?: boolean
+  hasSecret?: boolean
+  canSpawnBoss?: boolean
+  isVisited?: boolean
 }
 
 interface ZoneMapProps {
@@ -48,7 +52,7 @@ export default function ZoneMap({ zoneName, microZones, onSelect }: ZoneMapProps
   }
 
   return (
-    <div className="relative w-full h-[500px] bg-gray-900 rounded-xl overflow-hidden border-2 border-gray-700">
+    <div className="relative w-full h-full min-h-[400px] bg-gray-900 rounded-xl overflow-hidden border-2 border-gray-700">
       <div className="absolute inset-0 bg-gradient-to-b from-gray-800 to-gray-900" />
       
       {/* Grid pattern overlay */}
@@ -80,13 +84,18 @@ export default function ZoneMap({ zoneName, microZones, onSelect }: ZoneMapProps
             onClick={() => onSelect(mz)}
           >
             <div className={`w-10 h-10 rounded-full border-2 border-white shadow-lg flex items-center justify-center transition-all group-hover:scale-125 ${getDangerColor(mz.dangerLevel)}`}>
-              <span className="text-lg">📍</span>
+              <span className="text-lg">{mz.hasChest ? '🎁' : mz.hasSecret ? '🔮' : '📍'}</span>
             </div>
             
-            <div className="absolute top-12 left-1/2 -translate-x-1/2 w-32 bg-black/90 border border-gray-700 rounded-lg p-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+            <div className="absolute top-12 left-1/2 -translate-x-1/2 w-40 bg-black/90 border border-gray-700 rounded-lg p-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
               <div className="font-bold text-amber-400 text-sm text-center">{mz.name}</div>
               <div className="text-xs text-gray-400 text-center mt-1">
                 Danger: {mz.dangerLevel}/5
+              </div>
+              <div className="flex justify-center gap-2 mt-1">
+                {mz.hasChest && <span className="text-amber-400">🎁</span>}
+                {mz.hasSecret && <span className="text-purple-400">🔮</span>}
+                {mz.canSpawnBoss && <span className="text-red-400">👹</span>}
               </div>
             </div>
           </div>

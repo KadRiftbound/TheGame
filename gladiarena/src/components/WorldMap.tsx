@@ -48,7 +48,7 @@ export default function WorldMap({ zones, currentCityId, onSelectZone }: WorldMa
   }
 
   return (
-    <div className="relative w-full h-[600px] bg-gray-900 rounded-xl overflow-hidden border-2 border-amber-900/50">
+    <div className="relative w-full h-full min-h-[400px] bg-gray-900 rounded-xl overflow-hidden border-2 border-amber-900/50">
       {/* Map Background - using the generated cartography image */}
       <div className="absolute inset-0 bg-cover bg-center" 
         style={{ 

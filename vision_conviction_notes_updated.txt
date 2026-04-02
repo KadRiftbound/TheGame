@@ -1,0 +1,220 @@
+Jeu web style Conviction
+
+Vision générale
+
+Le jeu ne cherche pas une méta “satisfaisante” via harmonisation.
+Il ne cherche pas non plus une grosse communauté au départ.
+L’objectif est de créer une fausse impression de monde gigantesque, avec beaucoup de zones, de systèmes, de secrets et une sensation de densité.
+
+Les premiers serveurs peuvent être entièrement gratuits.
+Un soutien peut être proposé plus tard pour financer un serveur de test réel permettant d’observer les comportements joueurs et ajuster le jeu via l’expérience réelle.
+
+L’équilibrage n’est pas la priorité absolue.
+Un joueur peut devenir extrêmement puissant si les conditions sont remplies.
+Ce qui compte n’est pas l’équilibre parfait, mais la cohérence entre puissance, difficulté d’obtention et risque.
+
+Exemples :
+- un objet surpuissant peut avoir 100 % de perte à la mort
+- une classe unique très puissante peut exister si son obtention est secrète et extrêmement difficile
+
+Direction générale
+
+Le jeu doit encourager :
+- l’originalité
+- la patience
+- la découverte
+- l’expérimentation
+- les styles de jeu non optimisés
+
+Le jeu doit être dur, mais de manière cohérente.
+La difficulté vient autant de la compréhension que des stats.
+
+Mort et punition
+
+La mort est pénalisante mais logique.
+
+Règle principale :
+- mourir = perte de niveau
+
+La punition varie selon le contexte :
+- PK actif → pertes plus lourdes
+- setups puissants → plus de risque
+- objets rares → perte possible
+
+Le joueur doit toujours sentir qu’il a pris un risque.
+
+Système PK
+
+Le PK est possible si deux joueurs sont présents dans la même zone au même moment.
+
+Le PK doit être :
+- risqué
+- peu rentable
+- situationnel
+
+Règles :
+- récompense faible
+- malus forts
+- risque élevé
+
+Scaling :
+- tuer plus faible → très peu de gain, grosse punition
+- combat équilibré → logique normale
+- PK intensif → pertes importantes (jusqu’à équipement)
+
+Le PK est un système opportuniste, pas central.
+
+Personnalisation et incarnation
+
+Le joueur peut incarner un personnage sans chercher l’optimisation.
+
+Exemples :
+- noble
+- marchand
+- explorateur
+- personnage dangereux
+- joueur orienté prestige
+
+Le joueur peut exister autrement que par la performance.
+
+Arènes
+
+Chaque ville possède une arène.
+
+Système :
+- progression locale par ville
+- devenir champion donne un titre et un bonus léger
+- rester champion sur une durée longue peut débloquer du contenu secret
+
+Important :
+- peu d’intérêt à revenir dominer des villes faibles
+- progression naturelle vers des arènes plus difficiles
+- récompense liée au temps et à la difficulté réelle
+
+Les arènes structurent la progression compétitive.
+
+Localisation et présence des joueurs
+
+La localisation des joueurs est réelle par zone.
+Le PvP dépend de rencontres réelles.
+
+Le système existe même avec peu de joueurs.
+Il reste secondaire et non obligatoire.
+
+PV, régénération et consommables
+
+- régénération rapide mais importante
+- beaucoup de consommables possibles
+- repos possible pour optimiser la récupération
+
+Le coût réel :
+- dégâts subis
+- ressources utilisées
+- décisions prises
+
+Combats de groupe (monstres)
+
+Les monstres peuvent être :
+- seuls
+- en groupe
+
+Un groupe :
+- cumule ses stats
+- augmente la difficulté
+- augmente la récompense
+
+Choix :
+- combat facile
+- combat risqué mais rentable
+
+Système d’équipe (coop async)
+
+Le groupe est une structure simple, sans interaction directe.
+
+Fonctionnement :
+- les joueurs rejoignent une équipe
+- ils jouent chacun de leur côté
+- s’ils sont présents dans la même zone, leurs stats sont combinées
+
+Important :
+- pas de communication
+- pas de synchronisation
+- pas de dépendance entre joueurs
+
+Le groupe est une condition de calcul, pas un gameplay coopératif réel.
+
+Récompenses :
+- gains partagés / réduits
+- logique de répartition simple
+
+Objectif :
+- permettre du jeu en groupe sans complexité technique
+
+Système de noblesse
+
+Présence d’un système de noblesse.
+
+Fonctions possibles :
+- statut
+- reconnaissance
+- accès à certains contenus
+- prestige
+
+Le système doit avoir un impact réel, même simple.
+
+Langues et traduction
+
+Système potentiel mais hors scope actuel.
+
+Idées futures :
+- langue à la création
+- compréhension progressive
+
+Non prioritaire.
+
+Accessibilité des zones
+
+- ordre logique mais non visible
+- exploration libre mais risquée
+
+Idées :
+- carte nécessaire pour navigation complète
+- obtention par différentes méthodes
+- exploration partielle sans carte
+
+Le joueur découvre le monde progressivement.
+
+Système de quêtes
+
+Les quêtes passent principalement par :
+- la taverne
+
+Logique :
+- système simple au début
+- déblocage progressif de quêtes plus complexes
+- contenu difficile et rare
+
+Système de titres
+
+Deux types :
+- titres classiques (actions répétées)
+- titres cachés (conditions obscures)
+
+Les titres peuvent :
+- récompenser comportements
+- donner petits bonus
+- suggérer du contenu caché
+
+Vision d’ensemble
+
+Le jeu repose sur :
+
+- liberté forte
+- monde dense et mystérieux
+- progression non guidée
+- risque / récompense cohérent
+- systèmes émergents
+- puissance possible mais jamais gratuite
+
+Le but n’est pas un jeu équilibré.
+Le but est un monde cohérent, dur, vivant et intéressant.

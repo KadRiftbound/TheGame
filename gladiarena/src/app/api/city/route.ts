@@ -177,6 +177,9 @@ export async function GET(request: NextRequest) {
           enemyAggroRange: true,
           rareLootChance: true,
           corruptionType: true,
+          travelTimeSeconds: true,
+          worldX: true,
+          worldY: true,
           cityId: true,
         },
         orderBy: { dangerScore: 'asc' }

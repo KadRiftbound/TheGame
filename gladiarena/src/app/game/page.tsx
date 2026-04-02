@@ -77,6 +77,8 @@ interface CityData {
     itemDropRate: number;
     xpMultiplier: number;
     travelTimeSeconds: number;
+    worldX: number;
+    worldY: number;
     isHub: boolean;
     nearestSafePoint: string | null;
     microZones?: { id: string; name: string; type: string; dangerLevel: number; rotationGroup: number }[];
@@ -158,6 +160,7 @@ export default function GamePage() {
   const [fate, setFate] = useState<any>(null)
   const [mapMode, setMapMode] = useState<'city' | 'world'>('world')
   const [cityLayer, setCityLayer] = useState<'hub' | 'travel'>('hub')
+  const [selectedPOI, setSelectedPOI] = useState<any>(null)
   const [advancedClasses, setAdvancedClasses] = useState<any[]>([])
   const [serverUniques, setServerUniques] = useState<any[]>([])
   const [expandedZone, setExpandedZone] = useState<string | null>(null)
@@ -551,6 +554,32 @@ const data = await res.json()
     return character.inventory?.find(i => i.itemId === equippedItemId)
   }
 
+  const getMerchantItems = (poiId: string) => {
+    const merchantsData: Record<string, any[]> = {
+      'taverne': [
+        { id: '1', name: 'Potion de Soin', desc: 'Restaure 50 HP', cost: 50 },
+        { id: '2', name: 'Potion dexp', desc: '+100 XP', cost: 100 },
+        { id: '3', name: 'Rations', desc: 'Nourriture pour monture', cost: 25 },
+      ],
+      'forgeron': [
+        { id: '4', name: 'Épée en Fer', desc: 'Attaque +5', cost: 200 },
+        { id: '5', name: 'Bouclier Bois', desc: 'Défense +3', cost: 150 },
+        { id: '6', name: 'Casque Cuir', desc: 'Défense +2', cost: 100 },
+      ],
+      'apothicaire': [
+        { id: '7', name: 'Antidote', desc: 'Guérit poison', cost: 75 },
+        { id: '8', name: 'Potion Force', desc: '+10% force 5min', cost: 150 },
+        { id: '9', name: 'Herbe Médicinale', desc: 'Soin +25', cost: 30 },
+      ],
+      'marchand': [
+        { id: '10', name: 'Gemme', desc: 'Objet rare', cost: 500 },
+        { id: '11', name: 'Carte', desc: 'Révele zone', cost: 300 },
+        { id: '12', name: 'Coffre', desc: 'Objet aléatoire', cost: 250 },
+      ],
+    }
+    return merchantsData[poiId] || []
+  }
+
   return (
     <div className="min-h-screen bg-gray-950 text-white overflow-hidden">
       {/* Top Bar */}
@@ -622,15 +651,6 @@ const data = await res.json()
               {cityData && cityData.playerCount > 0 && (
                 <span className="ml-auto text-xs text-green-400">{cityData.playerCount}</span>
               )}
-            </button>
-            <button
-              onClick={() => setActiveTab('fight')}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
-                activeTab === 'fight' ? 'bg-amber-600 text-white' : 'text-gray-400 hover:bg-gray-800'
-              }`}
-            >
-              <span className="text-xl">⚔️</span>
-              <span>Combattre</span>
             </button>
             <button
               onClick={() => setActiveTab('explore')}
@@ -791,117 +811,33 @@ const data = await res.json()
         {/* Main Area */}
         <div className="flex-1 p-6 overflow-y-auto">
           
-          {/* City Tab */}
+          {/* City Tab - Map as dominant, contextual merchants */}
           {activeTab === 'city' && (
-            <div className="max-w-4xl mx-auto">
-              {/* City Header */}
-              <div className="bg-gradient-to-r from-amber-900/50 to-gray-900 rounded-xl p-6 border border-amber-500/30 mb-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h1 className="text-3xl font-bold text-amber-400">🏰 Cité des Arènes</h1>
-                    <p className="text-gray-400 mt-2">{cityData?.cityDescription}</p>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-2xl font-bold text-green-400">{cityData?.playerCount || 0}</div>
-                    <div className="text-xs text-gray-500">joueurs en ligne</div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="mb-6 bg-gray-900/50 rounded-xl p-3 border border-gray-700 flex items-center justify-between">
-                <div className="text-sm text-gray-300">
-                  Couche active: <span className="font-bold text-amber-400">{cityLayer === 'hub' ? 'Ville' : 'Déplacement vers zones'}</span>
+            <div className="h-full flex flex-col">
+              {/* Minimal header - tooltip style */}
+              <div className="mb-4 flex items-center justify-between px-4">
+                <div>
+                  <h1 className="text-2xl font-bold text-amber-400">{cityData?.cityName || 'Bastion de Fer'}</h1>
+                  <p className="text-xs text-gray-500">{cityData?.playerCount || 0} joueurs en ligne</p>
                 </div>
                 <div className="flex gap-2">
                   <button
                     onClick={() => { setCityLayer('hub'); setMapMode('city') }}
                     className={`px-3 py-1 rounded text-sm font-bold ${cityLayer === 'hub' ? 'bg-amber-600 text-white' : 'bg-gray-700 text-gray-400'}`}
                   >
-                    🏰 Ville
+                    🏰 Cité
                   </button>
                   <button
-                    onClick={() => { setCityLayer('travel'); setMapMode('world') }}
+                    onClick={() => { setCityLayer('travel'); setMapMode('world'); setActiveTab('explore') }}
                     className={`px-3 py-1 rounded text-sm font-bold ${cityLayer === 'travel' ? 'bg-green-600 text-white' : 'bg-gray-700 text-gray-400'}`}
                   >
-                    🧭 Déplacement
+                    🗺️ Zones
                   </button>
                 </div>
               </div>
 
-              {/* Merchants */}
-              {cityLayer === 'hub' && (
-              <>
-              <h2 className="text-xl font-bold mb-4 text-gray-300">🏪 Marchands</h2>
-              <div className="grid grid-cols-3 gap-4 mb-8">
-                {cityData?.merchants?.map(merchant => (
-                  <div key={merchant.id} className="bg-gray-900/50 rounded-xl p-4 border border-gray-700">
-                    <div className="text-3xl mb-2">{merchant.icon}</div>
-                    <div className="font-bold">{merchant.name}</div>
-                    <div className="text-xs text-gray-500">{merchant.description}</div>
-                    <div className="mt-3 space-y-2">
-                      {merchant.inventory.map((item: any) => (
-                        <div key={item.id} className="flex items-center justify-between bg-gray-800 rounded p-2 text-xs">
-                          <div>
-                            <div className="font-bold text-amber-400">{item.name}</div>
-                            <div className="text-gray-400">
-                              {item.speedBonus ? (
-                                <span className="text-blue-400">⚡ +{item.speedBonus}% vitesse</span>
-                              ) : (
-                                Object.entries(item.stats).map(([k, v]: [string, any]) => `${k}:+${v}`).join(', ')
-                              )}
-                            </div>
-                            {item.levelReq && (
-                              <div className="text-orange-400 text-xs">Nv. {item.levelReq}</div>
-                            )}
-                          </div>
-                          <button 
-                            onClick={async () => {
-                              const token = localStorage.getItem('token')
-                              if (!token) return
-                              const res = await fetch('/api/shop', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                                body: JSON.stringify({ action: 'buy', merchantId: merchant.id, itemId: item.id })
-                              })
-                              const data = await res.json()
-                              if (res.ok) {
-                                alert(data.message)
-                                fetch('/api/character', { headers: { 'Authorization': `Bearer ${token}` } })
-                                  .then(r => r.json())
-                                  .then(c => setCharacter(c.character))
-                              } else {
-                                alert(data.error)
-                              }
-                            }}
-                            className="px-2 py-1 bg-green-600 hover:bg-green-500 rounded text-xs font-bold"
-                          >
-                            💰 {item.cost}
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-              </>
-              )}
-
-              {/* Interactive Map */}
-              <div className="mb-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-xl font-bold text-gray-300">{cityLayer === 'hub' ? '🏙️ Carte de la Cité' : '🗺️ Carte du Monde'}</h2>
-                </div>
-
-                {cityLayer === 'travel' ? (
-                  <p className="text-sm text-gray-400 mb-3">
-                    Étape 1/3: Choisissez une zone sur la carte. Étape 2/3: combattez dans l'onglet Zones. Étape 3/3: explorez les micro-zones.
-                  </p>
-                ) : (
-                  <p className="text-sm text-gray-400 mb-3">
-                    Vous êtes en ville: utilisez les marchands et préparez votre équipement avant de partir.
-                  </p>
-                )}
-
+              {/* MAP - Full space, dominant visual */}
+              <div className="flex-1 p-4 pt-0">
                 {cityLayer === 'travel' ? (
                   <WorldMap 
                     zones={cityData?.zones?.map(z => ({
@@ -912,14 +848,21 @@ const data = await res.json()
                       maxLevel: z.maxLevel,
                       difficulty: z.difficulty,
                       description: z.description,
-                      worldX: 0,
-                      worldY: 0
+                      worldX: z.worldX || 0,
+                      worldY: z.worldY || 0
                     })) || []}
                     onSelectZone={(zone) => {
                       const found = cityData?.zones?.find(z => z.id === zone.id)
                       if (found) {
+                        // Distance-based travel time (max 40s)
+                        const cityX = 50, cityY = 80
+                        const zoneX = found.worldX || 50
+                        const zoneY = found.worldY || 50
+                        const distance = Math.sqrt(Math.pow(zoneX - cityX, 2) + Math.pow(zoneY - cityY, 2))
+                        const maxDistance = 100
+                        const travelTime = Math.max(10000, Math.min(40000, Math.round((distance / maxDistance) * 40000)))
                         setTravelingToZone(found)
-                        setTravelDuration((found.travelTimeSeconds || 180) * 1000)
+                        setTravelDuration(travelTime)
                         setTravelStartTime(Date.now())
                         setIsTraveling(true)
                         setTravelProgress(0)
@@ -930,17 +873,47 @@ const data = await res.json()
                   <CityMap 
                     cityName={cityData?.cityName || 'Bastion de Fer'}
                     pois={[
-                      { id: 'taverne', name: 'La Taverne du Coin', type: 'merchant', x: 30, y: 40, description: 'Un endroit chaleureux pour se reposer' },
-                      { id: 'forgeron', name: 'La Forge du Seuil', type: 'merchant', x: 60, y: 35, description: 'Armes et armures de qualité' },
+                      { id: 'taverne', name: 'La Taverne du Coin', type: 'merchant', x: 30, y: 45, description: 'Un endroit chaleureux pour se reposer' },
+                      { id: 'forgeron', name: 'La Forge du Seuil', type: 'merchant', x: 65, y: 35, description: 'Armes et armures' },
                       { id: 'apothicaire', name: "L'Apothicaire", type: 'merchant', x: 45, y: 65, description: 'Potions et remèdes' },
-                      { id: 'marchand', name: 'Le Grand Marché', type: 'merchant', x: 70, y: 60, description: 'Articles divers et raretés' },
+                      { id: 'marchand', name: 'Le Grand Marché', type: 'merchant', x: 75, y: 60, description: 'Articles divers' },
                     ]}
                     onSelectPOI={(poi) => {
-                      alert(`Vous avez sélectionné: ${poi.name}`)
+                      if (poi.type === 'merchant') {
+                        setSelectedPOI(poi)
+                      } else {
+                        alert(`${poi.name}: ${poi.description}`)
+                      }
                     }}
                   />
                 )}
               </div>
+
+              {/* Contextual merchants panel - only when POI clicked */}
+              {cityLayer === 'hub' && selectedPOI && (
+                <div className="p-4 pt-0">
+                  <div className="p-4 bg-gray-900/90 rounded-xl border border-amber-600/50">
+                    <div className="flex justify-between items-center mb-3">
+                      <h3 className="font-bold text-amber-400 text-lg">{selectedPOI.name}</h3>
+                      <button onClick={() => setSelectedPOI(null)} className="text-gray-500 hover:text-white">✕</button>
+                    </div>
+                    <p className="text-sm text-gray-400 mb-4">{selectedPOI.description}</p>
+                    <div className="space-y-2">
+                      {getMerchantItems(selectedPOI.id).map((item: any) => (
+                        <div key={item.id} className="flex items-center justify-between bg-gray-800/80 rounded p-2">
+                          <div>
+                            <div className="font-bold text-amber-400">{item.name}</div>
+                            <div className="text-xs text-gray-500">{item.desc}</div>
+                          </div>
+                          <button className="px-3 py-1 bg-green-700 hover:bg-green-600 rounded text-sm font-bold">
+                            {item.cost} 💰
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -1194,52 +1167,101 @@ const data = await res.json()
             </div>
           )}
 
-          {/* Explore Tab - Micro-zones */}
+          {/* Explore Tab - World Map + Micro-zones */}
           {activeTab === 'explore' && (
-            <div className="max-w-4xl mx-auto">
-              <h2 className="text-xl font-bold mb-4 text-gray-300">🧭 Explorer les Zones</h2>
-              
-              {/* Zone Selection */}
+            <div className="h-full flex flex-col">
               {!exploringZone ? (
-                <div className="space-y-3">
-                  <p className="text-gray-400 text-sm mb-4">Cliquez sur une zone pour explorer ses micro-zones.</p>
-                  {cityData?.zones?.map(zone => (
-                    <div 
-                      key={zone.id}
-                      onClick={() => handleExplore(zone)}
-                      className="flex items-center p-4 rounded-xl border-2 border-gray-700 bg-gray-900/50 hover:border-green-500 cursor-pointer"
-                    >
-                      <div className="text-3xl mr-4">🧭</div>
-                      <div className="flex-1">
-                        <div className="font-bold text-lg">{zone.name}</div>
-                        <div className="text-gray-500 text-sm">{zone.description}</div>
-                        {zone.microZones && zone.microZones.length > 0 && (
-                          <div className="text-xs text-green-400 mt-1">
-                            {zone.microZones.length} micro-zones • Rotation active
-                          </div>
-                        )}
-                      </div>
-                      <button className="px-4 py-2 bg-green-600 hover:bg-green-500 rounded-lg font-bold">
-                        Explorer
-                      </button>
+                <>
+                  {/* Header with back to city option */}
+                  <div className="mb-4 flex items-center justify-between px-4">
+                    <div>
+                      <h1 className="text-2xl font-bold text-green-400">🧭 Explorer</h1>
+                      <p className="text-xs text-gray-500">Choisissez une zone pour voyager</p>
                     </div>
-                  ))}
-                </div>
+                    <button 
+                      onClick={() => setActiveTab('city')}
+                      className="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-sm"
+                    >
+                      ← Cité
+                    </button>
+                  </div>
+
+                  {/* World Map - Full space */}
+                  <div className="flex-1 p-4 pt-0">
+                    <WorldMap 
+                      zones={cityData?.zones?.map(z => ({
+                        id: z.id,
+                        name: z.name,
+                        slug: z.id,
+                        minLevel: z.minLevel,
+                        maxLevel: z.maxLevel,
+                        difficulty: z.difficulty,
+                        description: z.description,
+                        worldX: z.worldX || 0,
+                        worldY: z.worldY || 0
+                      })) || []}
+                      onSelectZone={(zone) => {
+                        const found = cityData?.zones?.find(z => z.id === zone.id)
+                        if (found) {
+                          // Distance-based travel time (max 40s)
+                          const cityX = 50, cityY = 80
+                          const zoneX = found.worldX || 50
+                          const zoneY = found.worldY || 50
+                          const distance = Math.sqrt(Math.pow(zoneX - cityX, 2) + Math.pow(zoneY - cityY, 2))
+                          const maxDistance = 100
+                          const travelTime = Math.max(10000, Math.min(40000, Math.round((distance / maxDistance) * 40000)))
+                          setTravelingToZone(found)
+                          setTravelDuration(travelTime)
+                          setTravelStartTime(Date.now())
+                          setIsTraveling(true)
+                          setTravelProgress(0)
+                        }
+                      }}
+                    />
+                  </div>
+
+                  {/* Travel hint */}
+                  <div className="p-4 bg-gray-900/50 border-t border-gray-700">
+                    <p className="text-sm text-gray-400 text-center">
+                      💡 Temps de voyage: 10-40 secondes selon la distance
+                    </p>
+                  </div>
+                </>
               ) : (
-                /* Micro-zones View */
-                <div>
-                  <button 
-                    onClick={() => setExploringZone(null)}
-                    className="mb-4 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg font-bold"
-                  >
-                    ← Retour aux zones
-                  </button>
-                  
-                  <ZoneMap 
-                    zoneName={exploringZone.name}
-                    microZones={microZones}
-                    onSelect={(mz) => handleVisitMicroZone(mz, 'explore')}
-                  />
+                /* Micro-zones View within a zone */
+                <div className="h-full flex flex-col">
+                  <div className="mb-4 flex items-center justify-between px-4">
+                    <div>
+                      <h1 className="text-2xl font-bold text-green-400">{exploringZone.name}</h1>
+                      <p className="text-xs text-gray-500">Cliquez sur une zone pour combatte</p>
+                    </div>
+                    <button 
+                      onClick={() => {
+                        setExploringZone(null)
+                        setActiveTab('city')
+                        setCityLayer('hub')
+                      }}
+                      className="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-sm"
+                    >
+                      ← Retour Cité
+                    </button>
+                  </div>
+
+                  {/* Zone Map - Full space */}
+                  <div className="flex-1 p-4 pt-0">
+                    <ZoneMap 
+                      zoneName={exploringZone.name}
+                      microZones={microZones}
+                      onSelect={(mz) => handleVisitMicroZone(mz, 'explore')}
+                    />
+                  </div>
+
+                  {/* Local travel hint */}
+                  <div className="p-4 bg-gray-900/50 border-t border-gray-700">
+                    <p className="text-sm text-gray-400 text-center">
+                      💡 Voyage entre micro-zones: ~5-15 secondes
+                    </p>
+                  </div>
                 </div>
               )}
             </div>
