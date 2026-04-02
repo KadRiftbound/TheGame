@@ -154,6 +154,7 @@ export default function GamePage() {
   const [secrets, setSecrets] = useState<any[]>([])
   const [fate, setFate] = useState<any>(null)
   const [mapMode, setMapMode] = useState<'city' | 'world'>('world')
+  const [cityLayer, setCityLayer] = useState<'hub' | 'travel'>('hub')
   const [advancedClasses, setAdvancedClasses] = useState<any[]>([])
   const [serverUniques, setServerUniques] = useState<any[]>([])
   const [expandedZone, setExpandedZone] = useState<string | null>(null)
@@ -777,7 +778,29 @@ const data = await res.json()
                 </div>
               </div>
 
+              <div className="mb-6 bg-gray-900/50 rounded-xl p-3 border border-gray-700 flex items-center justify-between">
+                <div className="text-sm text-gray-300">
+                  Couche active: <span className="font-bold text-amber-400">{cityLayer === 'hub' ? 'Ville' : 'Déplacement vers zones'}</span>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => { setCityLayer('hub'); setMapMode('city') }}
+                    className={`px-3 py-1 rounded text-sm font-bold ${cityLayer === 'hub' ? 'bg-amber-600 text-white' : 'bg-gray-700 text-gray-400'}`}
+                  >
+                    🏰 Ville
+                  </button>
+                  <button
+                    onClick={() => { setCityLayer('travel'); setMapMode('world') }}
+                    className={`px-3 py-1 rounded text-sm font-bold ${cityLayer === 'travel' ? 'bg-green-600 text-white' : 'bg-gray-700 text-gray-400'}`}
+                  >
+                    🧭 Déplacement
+                  </button>
+                </div>
+              </div>
+
               {/* Merchants */}
+              {cityLayer === 'hub' && (
+              <>
               <h2 className="text-xl font-bold mb-4 text-gray-300">🏪 Marchands</h2>
               <div className="grid grid-cols-3 gap-4 mb-8">
                 {cityData?.merchants?.map(merchant => (
@@ -830,28 +853,26 @@ const data = await res.json()
                   </div>
                 ))}
               </div>
+              </>
+              )}
 
               {/* Interactive Map */}
               <div className="mb-6">
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-xl font-bold text-gray-300">🗺️ Carte du Monde</h2>
-                  <div className="flex gap-2">
-                    <button 
-                      onClick={() => setMapMode('world')}
-                      className={`px-3 py-1 rounded text-sm font-bold ${mapMode === 'world' ? 'bg-amber-600 text-white' : 'bg-gray-700 text-gray-400'}`}
-                    >
-                      Monde
-                    </button>
-                    <button 
-                      onClick={() => setMapMode('city')}
-                      className={`px-3 py-1 rounded text-sm font-bold ${mapMode === 'city' ? 'bg-amber-600 text-white' : 'bg-gray-700 text-gray-400'}`}
-                    >
-                      Cité
-                    </button>
-                  </div>
+                  <h2 className="text-xl font-bold text-gray-300">{cityLayer === 'hub' ? '🏙️ Carte de la Cité' : '🗺️ Carte du Monde'}</h2>
                 </div>
 
-                {mapMode === 'world' ? (
+                {cityLayer === 'travel' ? (
+                  <p className="text-sm text-gray-400 mb-3">
+                    Étape 1/3: Choisissez une zone sur la carte. Étape 2/3: combattez dans l'onglet Zones. Étape 3/3: explorez les micro-zones.
+                  </p>
+                ) : (
+                  <p className="text-sm text-gray-400 mb-3">
+                    Vous êtes en ville: utilisez les marchands et préparez votre équipement avant de partir.
+                  </p>
+                )}
+
+                {cityLayer === 'travel' ? (
                   <WorldMap 
                     zones={cityData?.zones?.map(z => ({
                       id: z.id,
@@ -1099,18 +1120,30 @@ const data = await res.json()
                           )}
                         </div>
                         {!combatLoading && (
-                          <button 
-                            onClick={(e) => { e.stopPropagation(); handleCombat(zone) }}
-                            className={`ml-4 px-6 py-3 rounded-xl font-bold transition ${
-                              hasHighRisk 
-                                ? 'bg-red-700 hover:bg-red-600' 
-                                : hasMediumRisk
-                                  ? 'bg-orange-700 hover:bg-orange-600'
-                                  : 'bg-amber-600 hover:bg-amber-500'
-                            }`}
-                          >
-                            {hasHighRisk ? '⚠️ Danger!' : hasMediumRisk ? '⚡ Risque!' : '⚔️ Combattre'}
-                          </button>
+                          <div className="ml-4 flex flex-col gap-2">
+                            <button 
+                              onClick={(e) => { e.stopPropagation(); handleCombat(zone) }}
+                              className={`px-6 py-3 rounded-xl font-bold transition ${
+                                hasHighRisk 
+                                  ? 'bg-red-700 hover:bg-red-600' 
+                                  : hasMediumRisk
+                                    ? 'bg-orange-700 hover:bg-orange-600'
+                                    : 'bg-amber-600 hover:bg-amber-500'
+                              }`}
+                            >
+                              {hasHighRisk ? '⚠️ Danger!' : hasMediumRisk ? '⚡ Risque!' : '⚔️ Combattre'}
+                            </button>
+                            <button
+                              onClick={async (e) => {
+                                e.stopPropagation()
+                                await handleExplore(zone)
+                                setActiveTab('explore')
+                              }}
+                              className="px-4 py-2 rounded-lg bg-green-700 hover:bg-green-600 font-bold text-sm"
+                            >
+                              🧭 Sous-zones
+                            </button>
+                          </div>
                         )}
                         {combatLoading && (
                           <div className="ml-4 px-6 py-3 bg-amber-700 rounded-xl font-bold animate-pulse">
