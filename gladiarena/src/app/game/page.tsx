@@ -151,6 +151,7 @@ export default function GamePage() {
   const [loading, setLoading] = useState(true)
   const [combatLoading, setCombatLoading] = useState(false)
   const [showStatsModal, setShowStatsModal] = useState(false)
+  const [showMicroZonePage, setShowMicroZonePage] = useState(false)
   const [activeTab, setActiveTab] = useState<'city' | 'fight' | 'explore' | 'dungeon' | 'inventory' | 'equipment' | 'quests' | 'craft' | 'achievements' | 'destiny' | 'titles' | 'chronicles' | 'factions' | 'bounties' | 'stats'>('city')
   const [craftingRecipes, setCraftingRecipes] = useState<any[]>([])
   const [crafting, setCrafting] = useState(false)
@@ -174,6 +175,7 @@ export default function GamePage() {
   const [microZones, setMicroZones] = useState<any[]>([])
   const [exploringZone, setExploringZone] = useState<any>(null)
   const [currentMicroZone, setCurrentMicroZone] = useState<any>(null)
+  const [microZoneDetail, setMicroZoneDetail] = useState<any>(null)
   const [isLocalTraveling, setIsLocalTraveling] = useState(false)
   const [localTravelProgress, setLocalTravelProgress] = useState(0)
   const [localTravelTarget, setLocalTravelTarget] = useState<any>(null)
@@ -348,15 +350,17 @@ export default function GamePage() {
       if (progress >= 1) {
         setIsLocalTraveling(false)
         setCurrentMicroZone(localTravelTarget)
+        // Load the new micro-zone detail
+        if (localTravelTarget?.id) {
+          fetchMicroZoneDetail(localTravelTarget.id)
+        }
         setLocalTravelTarget(null)
         setLocalTravelProgress(0)
-        // Rafraîchir les données de la zone
-        handleExplore(exploringZone)
       }
     }, 100)
     
     return () => clearInterval(interval)
-  }, [isLocalTraveling, localTravelStartTime, localTravelDuration, localTravelTarget, exploringZone])
+  }, [isLocalTraveling, localTravelStartTime, localTravelDuration])
 
   const handleCombat = async (zone: Zone) => {
     const token = localStorage.getItem('token')
@@ -476,6 +480,68 @@ const data = await res.json()
         handleExplore(exploringZone)
       }
     } catch (err) { console.error('Visit error:', err) }
+  }
+
+  const fetchMicroZoneDetail = async (microZoneId: string) => {
+    const token = localStorage.getItem('token')
+    if (!token) return
+    
+    try {
+      const res = await fetch(`/api/microzone/${microZoneId}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setMicroZoneDetail(data)
+        setShowMicroZonePage(true)
+      }
+    } catch (err) { console.error('MicroZone detail error:', err) }
+  }
+
+  const handleCombatInMicroZone = async (enemy: any) => {
+    if (!character || !microZoneDetail) return
+    
+    setCombatLoading(true)
+    try {
+      const res = await fetch('/api/combat/expedition', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+        body: JSON.stringify({ 
+          zoneId: microZoneDetail.zone.id,
+          enemyName: enemy.name,
+          enemyLevel: enemy.level,
+          enemyHp: enemy.hp,
+          enemyAttack: enemy.attack,
+          enemyDefense: enemy.defense,
+          isElite: enemy.isElite
+        })
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setCombatResult(data)
+        setCharacter(data.character)
+        fetchQuests(localStorage.getItem('token')!)
+      }
+    } catch (err) { console.error('Combat error:', err) }
+    finally { setCombatLoading(false) }
+  }
+
+  const handleOpenChest = async (chestId: string) => {
+    const token = localStorage.getItem('token')
+    if (!token) return
+    
+    try {
+      const res = await fetch('/api/explore/visit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ microZoneId: chestId, action: 'openChest' })
+      })
+      const data = await res.json()
+      if (res.ok && data.chest?.opened) {
+        alert(`Coffre ouvert: +${data.chest.goldReward} or!`)
+        fetchMicroZoneDetail(chestId)
+      }
+    } catch (err) { console.error('Open chest error:', err) }
   }
 
   const handleEnterDungeon = async (dungeon: any) => {
@@ -1291,8 +1357,8 @@ const data = await res.json()
                       currentMicroZoneId={currentMicroZone?.id || null}
                       onSelect={(mz) => {
                         if (mz.id === currentMicroZone?.id) {
-                          // Already here - explore this micro-zone
-                          handleVisitMicroZone(mz, 'explore')
+                          // Already here - show micro-zone detail page
+                          fetchMicroZoneDetail(mz.id)
                         } else {
                           // Travel to another micro-zone
                           const currentMZ = currentMicroZone || microZones[0]
@@ -2542,6 +2608,174 @@ const data = await res.json()
             <button onClick={() => setShowStatsModal(false)} className="w-full mt-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg">
               Fermer
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Micro-Zone Detail Modal */}
+      {showMicroZonePage && microZoneDetail && (
+        <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-900 rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border-2 border-green-600">
+            {/* Header */}
+            <div className="p-6 border-b border-gray-700">
+              <div className="flex items-center justify-between">
+                <h2 className="text-2xl font-bold text-green-400">🏔️ {microZoneDetail.microZone.name}</h2>
+                <button 
+                  onClick={() => setShowMicroZonePage(false)}
+                  className="text-gray-400 hover:text-white text-2xl"
+                >
+                  ✕
+                </button>
+              </div>
+              <p className="text-gray-400 mt-2">{microZoneDetail.microZone.description || 'Une zone obscure...'}</p>
+              <div className="flex items-center gap-4 mt-3">
+                <span className={`px-3 py-1 rounded text-sm font-bold ${
+                  microZoneDetail.microZone.dangerLevel <= 2 ? 'bg-green-900 text-green-300' :
+                  microZoneDetail.microZone.dangerLevel <= 3 ? 'bg-yellow-900 text-yellow-300' :
+                  'bg-red-900 text-red-300'
+                }`}>
+                  Danger: {microZoneDetail.microZone.dangerLevel}/5
+                </span>
+                <span className="text-gray-500 text-sm">Zone: {microZoneDetail.zone.name}</span>
+              </div>
+            </div>
+
+            {/* Enemies Section */}
+            <div className="p-6 border-b border-gray-700">
+              <h3 className="text-lg font-bold text-red-400 mb-4">👹 Monstres ({microZoneDetail.enemies.length})</h3>
+              {microZoneDetail.enemies.length === 0 ? (
+                <p className="text-gray-500 italic">Aucun monstre visible...</p>
+              ) : (
+                <div className="space-y-3">
+                  {microZoneDetail.enemies.map((enemy: any) => (
+                    <div key={enemy.id} className="flex items-center justify-between p-3 bg-gray-800 rounded-lg border border-gray-600">
+                      <div className="flex items-center gap-3">
+                        <span className="text-2xl">{enemy.isElite ? '👹' : '👾'}</span>
+                        <div>
+                          <div className="font-bold">{enemy.name} {enemy.isElite && <span className="text-yellow-400 text-sm">[Elite]</span>}</div>
+                          <div className="text-gray-400 text-sm">Nv. {enemy.level} • HP: {enemy.hp} • ATQ: {enemy.attack}</div>
+                        </div>
+                      </div>
+                      <button 
+                        onClick={() => handleCombatInMicroZone(enemy)}
+                        disabled={combatLoading}
+                        className="px-4 py-2 bg-red-600 hover:bg-red-500 rounded-lg font-bold disabled:opacity-50"
+                      >
+                        ⚔️ Combattre
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Chests Section */}
+            <div className="p-6 border-b border-gray-700">
+              <h3 className="text-lg font-bold text-amber-400 mb-4">🎁 Coffres</h3>
+              {microZoneDetail.chests.length === 0 ? (
+                <p className="text-gray-500 italic">Aucun coffre visible...</p>
+              ) : (
+                <div className="space-y-3">
+                  {microZoneDetail.chests.map((chest: any) => (
+                    <div key={chest.id} className="flex items-center justify-between p-3 bg-gray-800 rounded-lg border border-gray-600">
+                      <div className="flex items-center gap-3">
+                        <span className="text-2xl">{chest.isHidden ? '❓' : '🎁'}</span>
+                        <div>
+                          <div className="font-bold">
+                            Coffre {chest.rarity}
+                            {chest.isHidden && <span className="text-purple-400 text-sm ml-2">[Caché]</span>}
+                          </div>
+                          <div className="text-gray-400 text-sm">
+                            Difficulté: {chest.difficulty} • Récompense: ~{chest.goldReward} or
+                          </div>
+                        </div>
+                      </div>
+                      <button 
+                        onClick={() => handleOpenChest(chest.id)}
+                        className="px-4 py-2 bg-amber-600 hover:bg-amber-500 rounded-lg font-bold"
+                      >
+                        🔓 Ouvrir
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Secrets Section */}
+            {microZoneDetail.hasSecret && (
+              <div className="p-6 border-b border-gray-700">
+                <h3 className="text-lg font-bold text-purple-400 mb-4">🔮 Secret</h3>
+                <div className="p-3 bg-purple-900/30 rounded-lg border border-purple-600">
+                  <p className="text-gray-300">{microZoneDetail.hasSecret.hint || 'Il y a quelque chose d\'intéressant ici...'}</p>
+                  <button 
+                    onClick={async () => {
+                      const token = localStorage.getItem('token')
+                      if (!token || !microZoneDetail) return
+                      const res = await fetch('/api/explore/visit', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                        body: JSON.stringify({ microZoneId: microZoneDetail.microZone.id, action: 'discoverSecret' })
+                      })
+                      if (res.ok) {
+                        const data = await res.json()
+                        if (data.secret?.discovered) {
+                          alert('Secret découvert!')
+                          fetchMicroZoneDetail(microZoneDetail.microZone.id)
+                        }
+                      }
+                    }}
+                    className="mt-3 px-4 py-2 bg-purple-600 hover:bg-purple-500 rounded-lg font-bold"
+                  >
+                    🔍 Investiguer
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Connections Section */}
+            <div className="p-6">
+              <h3 className="text-lg font-bold text-blue-400 mb-4">🧭 Déplacements</h3>
+              {microZoneDetail.connectedMicroZones.length === 0 ? (
+                <p className="text-gray-500 italic">Aucune route connue...</p>
+              ) : (
+                <div className="grid grid-cols-2 gap-3">
+                  {microZoneDetail.connectedMicroZones.map((conn: any) => {
+                    const connDistance = Math.sqrt(
+                      Math.pow((conn.positionX || 0.5) - (microZoneDetail.microZone.positionX || 0.5), 2) +
+                      Math.pow((conn.positionY || 0.5) - (microZoneDetail.microZone.positionY || 0.5), 2)
+                    )
+                    const connTravelTime = Math.max(3000, Math.min(15000, Math.round(connDistance * 15000)))
+                    return (
+                      <button
+                        key={conn.id}
+                        onClick={() => {
+                          setLocalTravelTarget(conn)
+                          setLocalTravelStartTime(Date.now())
+                          setLocalTravelDuration(connTravelTime)
+                          setIsLocalTraveling(true)
+                          setShowMicroZonePage(false)
+                        }}
+                        className="p-3 bg-gray-800 hover:bg-gray-700 rounded-lg border border-gray-600 text-left"
+                      >
+                        <div className="font-bold">{conn.name}</div>
+                        <div className="text-gray-400 text-sm">
+                          ⏱️ ~{Math.round(connTravelTime / 1000)}s • Danger: {conn.dangerLevel}/5
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+              
+              {/* Back to map button */}
+              <button 
+                onClick={() => setShowMicroZonePage(false)}
+                className="w-full mt-4 p-3 bg-gray-700 hover:bg-gray-600 rounded-lg font-bold"
+              >
+                ← Retour à la carte
+              </button>
+            </div>
           </div>
         </div>
       )}
