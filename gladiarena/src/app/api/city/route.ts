@@ -10,6 +10,139 @@ interface ZoneProfile {
   badges: string[]
 }
 
+interface ZoneVisibility {
+  isVisible: boolean
+  complexity: 'simple' | 'intermediaire' | 'complexe'
+  unmetConditions: string[]
+}
+
+function evaluateSecretZoneVisibility(
+  condition: string | null,
+  character: any,
+  zoneVisitCountByZoneId: Map<string, number>
+): ZoneVisibility {
+  if (!condition) {
+    return { isVisible: true, complexity: 'simple', unmetConditions: [] }
+  }
+
+  const unmetConditions: string[] = []
+  let checks = 0
+
+  const raw = condition.trim()
+  if (raw.startsWith('title:')) {
+    checks++
+    const titleId = raw.replace('title:', '').trim()
+    const titles = JSON.parse(character?.titles || '[]')
+    if (!titles.includes(titleId)) unmetConditions.push(`titre ${titleId}`)
+  } else if (raw.startsWith('level>=')) {
+    checks++
+    const minLevel = Number(raw.replace('level>=', '').trim())
+    if ((character?.level || 1) < minLevel) unmetConditions.push(`niveau ${minLevel}`)
+  } else if (raw.startsWith('zone_visits:')) {
+    checks += 2
+    const [, payload] = raw.split(':')
+    const [zoneId, countStr] = (payload || '').split(':')
+    const targetCount = Number(countStr || 1)
+    const visits = zoneVisitCountByZoneId.get(zoneId) || 0
+    if (!zoneId || visits < targetCount) unmetConditions.push(`visites ${zoneId || 'zone'} x${targetCount}`)
+  } else if (raw.startsWith('secret:')) {
+    checks++
+    const secretFlag = raw.replace('secret:', '').trim()
+    const flags = JSON.parse(character?.secretFlags || '[]')
+    if (!flags.includes(secretFlag)) unmetConditions.push(`secret ${secretFlag}`)
+  } else {
+    checks += 3
+    unmetConditions.push(raw)
+  }
+
+  const complexity: ZoneVisibility['complexity'] =
+    checks <= 1 ? 'simple' : checks <= 3 ? 'intermediaire' : 'complexe'
+
+  return {
+    isVisible: unmetConditions.length === 0,
+    complexity,
+    unmetConditions,
+  }
+}
+
+function evaluateZoneVisibility(
+  zone: { isHidden: boolean; unlockCondition?: string | null },
+  character: any,
+  zoneVisitCountByZoneId: Map<string, number>
+): ZoneVisibility {
+  if (!zone.isHidden) {
+    return { isVisible: true, complexity: 'simple', unmetConditions: [] }
+  }
+
+  if (!zone.unlockCondition) {
+    return { isVisible: false, complexity: 'simple', unmetConditions: ['condition inconnue'] }
+  }
+
+  let conditions: any
+  try {
+    conditions = JSON.parse(zone.unlockCondition)
+  } catch {
+    return { isVisible: false, complexity: 'complexe', unmetConditions: ['condition invalide'] }
+  }
+
+  const unmetConditions: string[] = []
+  let checks = 0
+
+  if (conditions.minLevel) {
+    checks++
+    if ((character?.level || 1) < conditions.minLevel) {
+      unmetConditions.push(`niveau ${conditions.minLevel}`)
+    }
+  }
+
+  if (conditions.minVictories) {
+    checks++
+    if ((character?.victories || 0) < conditions.minVictories) {
+      unmetConditions.push(`${conditions.minVictories} victoires`)
+    }
+  }
+
+  if (conditions.requiresTitle) {
+    checks++
+    const titles = JSON.parse(character?.titles || '[]')
+    if (!titles.includes(conditions.requiresTitle)) {
+      unmetConditions.push(`titre ${conditions.requiresTitle}`)
+    }
+  }
+
+  if (conditions.requiresSecretFlag) {
+    checks++
+    const flags = JSON.parse(character?.secretFlags || '[]')
+    if (!flags.includes(conditions.requiresSecretFlag)) {
+      unmetConditions.push(`secret ${conditions.requiresSecretFlag}`)
+    }
+  }
+
+  if (conditions.zoneVisits?.zoneId && conditions.zoneVisits?.count) {
+    checks++
+    const visitCount = zoneVisitCountByZoneId.get(conditions.zoneVisits.zoneId) || 0
+    if (visitCount < conditions.zoneVisits.count) {
+      unmetConditions.push(`${conditions.zoneVisits.count} visites (${conditions.zoneVisits.zoneId})`)
+    }
+  }
+
+  if (conditions.currentZoneId) {
+    checks++
+    if (character?.currentZoneId !== conditions.currentZoneId) {
+      unmetConditions.push(`être dans ${conditions.currentZoneId}`)
+    }
+  }
+
+  const complexity: ZoneVisibility['complexity'] =
+    checks <= 1 ? 'simple' : checks <= 3 ? 'intermediaire' : 'complexe'
+
+  return {
+    isVisible: unmetConditions.length === 0,
+    complexity,
+    unmetConditions,
+  }
+}
+
 function calculateZoneProfile(zone: any): ZoneProfile {
   const dangers: string[] = []
   const prepRecommendations: string[] = []
@@ -109,7 +242,15 @@ export async function GET(request: NextRequest) {
     
     const character = userId ? await prisma.character.findUnique({
       where: { userId },
-      select: { currentZoneId: true, currentCityId: true }
+      select: {
+        id: true,
+        currentZoneId: true,
+        currentCityId: true,
+        level: true,
+        victories: true,
+        titles: true,
+        secretFlags: true
+      }
     }) : null
 
     // Get the current city - default to first city if none set
@@ -133,6 +274,8 @@ export async function GET(request: NextRequest) {
           difficulty: true,
           description: true,
           isHidden: true,
+          unlockCondition: true,
+          hiddenRoute: true,
           zoneType: true,
           dangerScore: true,
           baseDamageType: true,
@@ -168,6 +311,8 @@ export async function GET(request: NextRequest) {
           difficulty: true,
           description: true,
           isHidden: true,
+          unlockCondition: true,
+          hiddenRoute: true,
           zoneType: true,
           dangerScore: true,
           baseDamageType: true,
@@ -183,10 +328,32 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    const zones = zonesData.map(zone => ({
-      ...zone,
-      profile: calculateZoneProfile(zone)
-    }))
+    const zoneVisitCountByZoneId = new Map<string, number>()
+    if (character?.id) {
+      const zoneStates = await prisma.characterZoneState.findMany({
+        where: { characterId: character.id },
+        select: { zoneId: true, visitCount: true }
+      })
+      for (const s of zoneStates) zoneVisitCountByZoneId.set(s.zoneId, s.visitCount)
+    }
+
+    const zones = zonesData.map(zone => {
+      const visibility = evaluateZoneVisibility(zone, character, zoneVisitCountByZoneId)
+      const maskedZoneName = zone.isHidden && !visibility.isVisible ? 'Zone inconnue' : zone.name
+      const maskedDescription = zone.isHidden && !visibility.isVisible
+        ? zone.hiddenRoute || 'Cette zone reste voilée. Continuez à explorer pour la révéler.'
+        : zone.description
+
+      return {
+        ...zone,
+        name: maskedZoneName,
+        description: maskedDescription,
+        isVisible: visibility.isVisible,
+        visibilityComplexity: visibility.complexity,
+        visibilityMissing: visibility.unmetConditions,
+        profile: calculateZoneProfile(zone)
+      }
+    })
 
     // Get current city info
     const currentCity = currentCityId ? await prisma.city.findUnique({
@@ -197,6 +364,31 @@ export async function GET(request: NextRequest) {
     const allCities = await prisma.city.findMany({
       orderBy: { orderIndex: 'asc' },
       select: { id: true, name: true, slug: true, theme: true, dangerProfile: true }
+    })
+
+    const rawSecretZones = currentCityId ? await prisma.secretZone.findMany({
+      where: { cityId: currentCityId },
+      orderBy: [{ level: 'asc' }, { dangerScore: 'asc' }],
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        discoveryType: true,
+        condition: true,
+        isDiscovered: true,
+        level: true,
+        dangerScore: true
+      }
+    }) : []
+
+    const secretZones = rawSecretZones.map((secretZone) => {
+      const visibility = evaluateSecretZoneVisibility(secretZone.condition, character, zoneVisitCountByZoneId)
+      return {
+        ...secretZone,
+        isVisible: secretZone.isDiscovered || visibility.isVisible,
+        visibilityComplexity: visibility.complexity,
+        visibilityMissing: visibility.unmetConditions
+      }
     })
 
     const merchants = [
@@ -285,6 +477,7 @@ export async function GET(request: NextRequest) {
         citySpecials: getCitySpecials(currentCity),
       } : null,
       allCities,
+      secretZones,
       cityName: currentCity?.name || 'Cité des Arènes',
       cityDescription: currentCity?.description || 'Le cœur de l\'activité des.gladiateurs.',
       character: character
