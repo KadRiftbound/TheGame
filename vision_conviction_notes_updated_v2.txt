@@ -218,3 +218,33 @@ Le jeu repose sur :
 
 Le but n’est pas un jeu équilibré.
 Le but est un monde cohérent, dur, vivant et intéressant.
+
+
+Serveur international et villes de départ
+
+Le jeu fonctionne sur un serveur unique international.
+
+Au moment de la création du personnage, le joueur choisit sa langue principale (ex: anglais, français, espagnol).
+Ce choix détermine la ville de départ.
+
+Principes :
+- chaque langue correspond à une ville d’entrée différente
+- chaque ville a sa propre ambiance, ses premiers PNJ, ses premières zones et ses premières rumeurs
+- aucune ville n’est objectivement meilleure qu’une autre
+
+Objectifs :
+- donner une impression de monde vaste et multiculturel
+- renforcer l’identité du personnage dès le départ
+- améliorer la rejouabilité avec plusieurs débuts possibles
+
+Contraintes :
+- même valeur globale entre les villes (pas d’avantage structurel)
+- différences d’ambiance et de parcours, pas de puissance
+- convergence progressive vers un monde commun
+
+Important :
+- le choix de langue influence le point de départ, pas la puissance du personnage
+- le système ne doit pas fragmenter durablement les joueurs
+- les routes de progression doivent finir par se croiser naturellement
+
+Ce système est une porte d’entrée différente dans le même monde, pas une séparation en factions.

@@ -142,6 +142,9 @@ export async function GET(request: NextRequest) {
           enemyAggroRange: true,
           rareLootChance: true,
           corruptionType: true,
+          worldX: true,
+          worldY: true,
+          travelTimeSeconds: true,
           cityId: true,
           microZones: {
             select: {

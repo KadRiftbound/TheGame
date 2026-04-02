@@ -323,14 +323,18 @@ export default function GamePage() {
       if (progress >= 1) {
         setIsTraveling(false)
         setIsReturningFromDeath(false)
-        setActiveTab('fight')
+        // Stay on explore tab and load micro-zones
+        setActiveTab('explore')
+        if (travelingToZone) {
+          handleExplore(travelingToZone)
+        }
         setTravelingToZone(null)
         setTravelProgress(0)
       }
     }, 100)
     
     return () => clearInterval(interval)
-  }, [isTraveling, travelStartTime, travelDuration])
+  }, [isTraveling, travelStartTime, travelDuration, travelingToZone])
 
   // Local travel timer effect
   useEffect(() => {
