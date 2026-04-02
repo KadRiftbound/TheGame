@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import WorldMap from '@/components/WorldMap'
 import CityMap from '@/components/CityMap'
+import GameSocialPanel from '@/components/GameSocialPanel'
 
 interface Item {
   id: string
@@ -64,6 +65,9 @@ interface CityData {
     maxLevel: number; 
     difficulty: string; 
     isHidden: boolean;
+    isVisible?: boolean;
+    visibilityComplexity?: 'simple' | 'intermediaire' | 'complexe';
+    visibilityMissing?: string[];
     baseDamageType: string;
     environmentalHazard: boolean;
     hasCorruption: boolean;
@@ -86,6 +90,19 @@ interface CityData {
     }
   }[]
   merchants: { id: string; name: string; type: string; description: string; icon: string; inventory: any[] }[]
+  secretZones?: {
+    id: string
+    name: string
+    description: string
+    discoveryType: string
+    condition?: string | null
+    isDiscovered: boolean
+    isVisible: boolean
+    visibilityComplexity: 'simple' | 'intermediaire' | 'complexe'
+    visibilityMissing: string[]
+    level: number
+    dangerScore: number
+  }[]
 }
 
 interface Zone {
@@ -108,6 +125,9 @@ interface Zone {
   travelTimeSeconds?: number
   isHub?: boolean
   nearestSafePoint?: string | null
+  isVisible?: boolean
+  visibilityComplexity?: 'simple' | 'intermediaire' | 'complexe'
+  visibilityMissing?: string[]
   microZones?: { id: string; name: string; type: string; dangerLevel: number; rotationGroup: number }[]
   profile?: {
     riskScore: number
@@ -140,12 +160,11 @@ export default function GamePage() {
   const [character, setCharacter] = useState<Character | null>(null)
   const [zones, setZones] = useState<Zone[]>([])
   const [quests, setQuests] = useState<Quest[]>([])
-  const [selectedZone, setSelectedZone] = useState<Zone | null>(null)
   const [combatResult, setCombatResult] = useState<CombatResult | null>(null)
   const [loading, setLoading] = useState(true)
   const [combatLoading, setCombatLoading] = useState(false)
   const [showStatsModal, setShowStatsModal] = useState(false)
-  const [activeTab, setActiveTab] = useState<'city' | 'fight' | 'explore' | 'dungeon' | 'inventory' | 'equipment' | 'quests' | 'craft' | 'achievements' | 'destiny' | 'titles' | 'chronicles' | 'factions' | 'bounties' | 'stats'>('city')
+  const [activeTab, setActiveTab] = useState<'city' | 'explore' | 'dungeon' | 'inventory' | 'equipment' | 'quests' | 'craft' | 'achievements' | 'destiny' | 'titles' | 'chronicles' | 'factions' | 'bounties' | 'stats'>('city')
   const [craftingRecipes, setCraftingRecipes] = useState<any[]>([])
   const [crafting, setCrafting] = useState(false)
   const [selectedEnemy, setSelectedEnemy] = useState<any>(null)
@@ -153,9 +172,9 @@ export default function GamePage() {
   const [secrets, setSecrets] = useState<any[]>([])
   const [fate, setFate] = useState<any>(null)
   const [mapMode, setMapMode] = useState<'city' | 'world'>('world')
+  const [cityLayer, setCityLayer] = useState<'hub' | 'travel'>('hub')
   const [advancedClasses, setAdvancedClasses] = useState<any[]>([])
   const [serverUniques, setServerUniques] = useState<any[]>([])
-  const [expandedZone, setExpandedZone] = useState<string | null>(null)
   const [cityData, setCityData] = useState<CityData | null>(null)
   const [titles, setTitles] = useState<any[]>([])
   const [allTitles, setAllTitles] = useState<any[]>([])
@@ -169,6 +188,12 @@ export default function GamePage() {
   const [selectedDungeon, setSelectedDungeon] = useState<any>(null)
   const [dungeonState, setDungeonState] = useState<any>(null)
   const [inDungeon, setInDungeon] = useState(false)
+  const [isTraveling, setIsTraveling] = useState(false)
+  const [travelProgress, setTravelProgress] = useState(0)
+  const [travelingToZone, setTravelingToZone] = useState<Zone | null>(null)
+  const [travelStartTime, setTravelStartTime] = useState(0)
+  const [travelDuration, setTravelDuration] = useState(0)
+  const [isReturningFromDeath, setIsReturningFromDeath] = useState(false)
   const router = useRouter()
 
   const fetchQuests = async (token: string) => {
@@ -285,36 +310,33 @@ export default function GamePage() {
     }
   }, [activeTab])
 
+  useEffect(() => {
+    if (!isTraveling || travelDuration <= 0) return
+
+    const timer = setInterval(async () => {
+      const elapsed = Date.now() - travelStartTime
+      const progress = Math.min(100, (elapsed / travelDuration) * 100)
+      setTravelProgress(progress)
+
+      if (progress >= 100) {
+        clearInterval(timer)
+        setIsTraveling(false)
+        setTravelProgress(100)
+        if (travelingToZone) {
+          await handleExplore(travelingToZone)
+          setActiveTab('explore')
+          setTravelingToZone(null)
+        }
+      }
+    }, 250)
+
+    return () => clearInterval(timer)
+  }, [isTraveling, travelDuration, travelStartTime, travelingToZone])
+
   const handleLogout = () => {
     localStorage.removeItem('token')
     localStorage.removeItem('user')
     router.push('/auth/login')
-  }
-
-  const handleCombat = async (zone: Zone) => {
-    const token = localStorage.getItem('token')
-    if (!token || !character) return
-
-    setSelectedZone(zone)
-    setCombatLoading(true)
-    setCombatResult(null)
-
-    try {
-      const res = await fetch('/api/combat/expedition', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ zoneId: zone.id })
-      })
-
-const data = await res.json()
-        if (res.ok) {
-          setCombatResult(data)
-          setCharacter(data.character)
-          fetchQuests(token)
-          fetch('/api/chronicles').then(res => res.json()).then(d => setChronicles(d.records || [])).catch(() => {})
-        }
-    } catch (err) { console.error('Combat error:', err) }
-    finally { setCombatLoading(false) }
   }
 
   const handleEquip = async (inventoryItemId: string) => {
@@ -433,6 +455,30 @@ const data = await res.json()
       if (data.room) {
         setDungeonState({ currentRoom: data.room, message: data.message })
       }
+    }
+  }
+
+  const handleZoneTravel = async (zone: Zone) => {
+    const token = localStorage.getItem('token')
+    if (!token) return
+
+    setTravelingToZone(zone)
+    setTravelDuration((zone.travelTimeSeconds || 180) * 1000)
+    setTravelStartTime(Date.now())
+    setIsTraveling(true)
+    setTravelProgress(0)
+    setIsReturningFromDeath(false)
+
+    try {
+      const fromZone = character?.currentZoneId || 'city'
+      await fetch('/api/travel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ fromZone, toZone: zone.id })
+      }).catch(() => {})
+    } catch (err) {
+      console.error('Travel error:', err)
+      setIsTraveling(false)
     }
   }
 
@@ -592,15 +638,6 @@ const data = await res.json()
               )}
             </button>
             <button
-              onClick={() => setActiveTab('fight')}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
-                activeTab === 'fight' ? 'bg-amber-600 text-white' : 'text-gray-400 hover:bg-gray-800'
-              }`}
-            >
-              <span className="text-xl">⚔️</span>
-              <span>Combattre</span>
-            </button>
-            <button
               onClick={() => setActiveTab('explore')}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
                 activeTab === 'explore' ? 'bg-green-600 text-white' : 'text-gray-400 hover:bg-gray-800'
@@ -758,6 +795,17 @@ const data = await res.json()
 
         {/* Main Area */}
         <div className="flex-1 p-6 overflow-y-auto">
+          {isTraveling && (
+            <div className="mb-4 bg-blue-900/30 border border-blue-700 rounded-lg p-3 text-blue-100">
+              <div className="font-bold">🧭 Voyage vers {travelingToZone?.name || 'zone inconnue'}</div>
+              <div className="text-sm text-blue-200">
+                {isReturningFromDeath ? 'Retour forcé après défaite...' : 'Trajet en cours...'}
+              </div>
+              <div className="mt-2 w-full h-2 bg-blue-950 rounded overflow-hidden">
+                <div className="h-full bg-blue-400 transition-all" style={{ width: `${travelProgress}%` }} />
+              </div>
+            </div>
+          )}
           
           {/* City Tab */}
           {activeTab === 'city' && (
@@ -776,7 +824,29 @@ const data = await res.json()
                 </div>
               </div>
 
+              <div className="mb-6 bg-gray-900/50 rounded-xl p-3 border border-gray-700 flex items-center justify-between">
+                <div className="text-sm text-gray-300">
+                  Couche active: <span className="font-bold text-amber-400">{cityLayer === 'hub' ? 'Ville' : 'Déplacement vers zones'}</span>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => { setCityLayer('hub'); setMapMode('city') }}
+                    className={`px-3 py-1 rounded text-sm font-bold ${cityLayer === 'hub' ? 'bg-amber-600 text-white' : 'bg-gray-700 text-gray-400'}`}
+                  >
+                    🏰 Ville
+                  </button>
+                  <button
+                    onClick={() => { setCityLayer('travel'); setMapMode('world') }}
+                    className={`px-3 py-1 rounded text-sm font-bold ${cityLayer === 'travel' ? 'bg-green-600 text-white' : 'bg-gray-700 text-gray-400'}`}
+                  >
+                    🧭 Déplacement
+                  </button>
+                </div>
+              </div>
+
               {/* Merchants */}
+              {cityLayer === 'hub' && (
+              <>
               <h2 className="text-xl font-bold mb-4 text-gray-300">🏪 Marchands</h2>
               <div className="grid grid-cols-3 gap-4 mb-8">
                 {cityData?.merchants?.map(merchant => (
@@ -829,28 +899,26 @@ const data = await res.json()
                   </div>
                 ))}
               </div>
+              </>
+              )}
 
               {/* Interactive Map */}
               <div className="mb-6">
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-xl font-bold text-gray-300">🗺️ Carte du Monde</h2>
-                  <div className="flex gap-2">
-                    <button 
-                      onClick={() => setMapMode('world')}
-                      className={`px-3 py-1 rounded text-sm font-bold ${mapMode === 'world' ? 'bg-amber-600 text-white' : 'bg-gray-700 text-gray-400'}`}
-                    >
-                      Monde
-                    </button>
-                    <button 
-                      onClick={() => setMapMode('city')}
-                      className={`px-3 py-1 rounded text-sm font-bold ${mapMode === 'city' ? 'bg-amber-600 text-white' : 'bg-gray-700 text-gray-400'}`}
-                    >
-                      Cité
-                    </button>
-                  </div>
+                  <h2 className="text-xl font-bold text-gray-300">{cityLayer === 'hub' ? '🏙️ Carte de la Cité' : '🗺️ Carte du Monde'}</h2>
                 </div>
 
-                {mapMode === 'world' ? (
+                {cityLayer === 'travel' ? (
+                  <p className="text-sm text-gray-400 mb-3">
+                    Étape 1/3: Choisissez une zone sur la carte. Étape 2/3: le trajet se lance automatiquement. Étape 3/3: affrontez des monstres en micro-zones.
+                  </p>
+                ) : (
+                  <p className="text-sm text-gray-400 mb-3">
+                    Vous êtes en ville: utilisez les marchands et préparez votre équipement avant de partir.
+                  </p>
+                )}
+
+                {cityLayer === 'travel' ? (
                   <WorldMap 
                     zones={cityData?.zones?.map(z => ({
                       id: z.id,
@@ -866,8 +934,16 @@ const data = await res.json()
                     onSelectZone={(zone) => {
                       const found = cityData?.zones?.find(z => z.id === zone.id)
                       if (found) {
-                        setSelectedZone(found)
-                        setActiveTab('fight')
+                        if (found.isVisible === false) {
+                          alert(`Zone secrète non révélée (${found.visibilityComplexity || 'inconnue'})`)
+                          return
+                        }
+                        setTravelingToZone(found)
+                        setTravelDuration((found.travelTimeSeconds || 180) * 1000)
+                        setTravelStartTime(Date.now())
+                        setIsTraveling(true)
+                        setTravelProgress(0)
+                        handleZoneTravel(found)
                       }
                     }}
                   />
@@ -886,241 +962,32 @@ const data = await res.json()
                   />
                 )}
               </div>
-            </div>
-          )}
 
-          {/* Fight Tab (Zone View) */}
-          {activeTab === 'fight' && (
-            <div className="max-w-4xl mx-auto">
-              {/* Quick Stats */}
-              <div className="mb-6 bg-gray-900/50 rounded-xl p-4 border border-gray-800">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-6">
-                    <div className="flex items-center gap-2">
-                      <span className="text-2xl">{character.class.icon}</span>
-                      <div>
-                        <div className="font-bold">{character.name}</div>
-                        <div className="text-amber-400 text-sm">Niveau {character.level}</div>
-                        {character.corruptionLevel > 0 && (
-                          <div className="text-xs text-red-400">🔮 Corruption: {character.corruptionLevel}%</div>
-                        )}
-                        {character.fatigue > 50 && (
-                          <div className="text-xs text-yellow-400">😫 Fatigue: {character.fatigue}%</div>
+              {cityData?.secretZones && cityData.secretZones.length > 0 && (
+                <div className="mt-6 bg-purple-950/20 rounded-xl p-4 border border-purple-800/40">
+                  <h2 className="text-xl font-bold text-purple-300 mb-3">🔐 Zones secrètes</h2>
+                  <div className="space-y-2">
+                    {cityData.secretZones.map(sz => (
+                      <div key={sz.id} className="rounded-lg bg-gray-900/50 border border-gray-700 p-3">
+                        <div className="flex items-center justify-between">
+                          <div className="font-bold text-purple-200">{sz.isVisible ? sz.name : 'Zone secrète inconnue'}</div>
+                          <span className="text-xs px-2 py-1 rounded bg-purple-900/50 text-purple-200">
+                            {sz.visibilityComplexity}
+                          </span>
+                        </div>
+                        <div className="text-sm text-gray-400 mt-1">
+                          {sz.isVisible ? sz.description : 'Des indices circulent en ville, mais les conditions ne sont pas encore réunies.'}
+                        </div>
+                        {!sz.isVisible && sz.visibilityMissing?.length > 0 && (
+                          <div className="text-xs text-purple-300 mt-1">
+                            Conditions manquantes: {sz.visibilityMissing.join(' • ')}
+                          </div>
                         )}
                       </div>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <span className="text-red-400">❤️</span>
-                      <span className="text-sm mr-1">{character.currentHp}/{character.maxHp}</span>
-                      <div className="w-24 h-2 bg-gray-800 rounded-full overflow-hidden">
-                        <div className="h-full bg-red-500 transition-all" style={{ width: `${hpPercent}%` }} />
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
-                    {(character.currentHp < character.maxHp || character.corruptionLevel > 0 || character.fatigue > 0) && (
-                      <button 
-                        onClick={async () => {
-                          const token = localStorage.getItem('token')
-                          if (!token) return
-                          const res = await fetch('/api/heal', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                            body: JSON.stringify({ action: 'heal' })
-                          })
-                          if (res.ok) {
-                            const data = await res.json()
-                            alert(data.message)
-                            fetch('/api/character', { headers: { 'Authorization': `Bearer ${token}` } })
-                              .then(r => r.json())
-                              .then(c => setCharacter(c.character))
-                          }
-                        }}
-                        className="px-4 py-2 bg-green-700 hover:bg-green-600 rounded-lg text-sm font-bold transition"
-                      >
-                        Soin gratuit
-                      </button>
-                    )}
+                    ))}
                   </div>
                 </div>
-              </div>
-
-              <h2 className="text-xl font-bold mb-4 text-gray-300">🚩 Zones d'Aventure</h2>
-              
-              {/* Return to City Button */}
-              <div className="mb-4 flex justify-end">
-                <button 
-                  onClick={async () => {
-                    const token = localStorage.getItem('token')
-                    if (!token) return
-                    await fetch('/api/travel', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                      body: JSON.stringify({ action: 'return_to_city' })
-                    })
-                    setActiveTab('city')
-                    fetch('/api/character', { headers: { 'Authorization': `Bearer ${token}` } })
-                      .then(res => res.json())
-                      .then(data => setCharacter(data.character))
-                  }}
-                  className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg font-bold"
-                >
-                  🏰 Retour à la Cité
-                </button>
-              </div>
-               
-              {/* Zones Grid - Arena Style */}
-              <div className="space-y-3">
-                {zones.map(zone => {
-                  // All zones accessible - danger is real, not level-locked
-                  const canEnter = true
-                  const isNext = zones.filter(z => character.level >= z.minLevel).length === zones.indexOf(zone) + 1
-                  const hasHighRisk = zone.profile && zone.profile.riskScore >= 7
-                  const hasMediumRisk = zone.profile && zone.profile.riskScore >= 4
-                  
-                  return (
-                    <div
-                      key={zone.id}
-                      className={`relative overflow-hidden rounded-xl border-2 transition-all ${
-                        hasHighRisk 
-                          ? 'border-red-800/70 bg-gradient-to-r from-red-950/30 to-gray-900 hover:border-red-600 cursor-pointer' 
-                          : hasMediumRisk
-                            ? 'border-orange-700/70 bg-gradient-to-r from-orange-950/20 to-gray-900 hover:border-orange-500 cursor-pointer'
-                            : canEnter 
-                              ? isNext
-                                ? 'border-amber-500/70 bg-gradient-to-r from-amber-900/30 to-gray-900 hover:border-amber-400 cursor-pointer' 
-                                : 'border-gray-700 bg-gray-900/50 hover:border-gray-600 cursor-pointer'
-                              : 'border-gray-800 bg-gray-900/30 opacity-60 cursor-not-allowed'
-                      }`}
-                      onClick={() => {
-                        if (!combatLoading) {
-                          setExpandedZone(expandedZone === zone.id ? null : zone.id)
-                        }
-                      }}
-                    >
-                      <div className="flex items-center p-4">
-                        <div className={`w-16 h-16 rounded-xl flex items-center justify-center text-3xl mr-4 ${
-                          zone.difficulty === 'easy' ? 'bg-green-900/50' :
-                          zone.difficulty === 'normal' ? 'bg-yellow-900/50' :
-                          zone.difficulty === 'hard' ? 'bg-red-900/50' :
-                          'bg-purple-900/50'
-                        }`}>
-                          {zone.difficulty === 'easy' ? '🌿' :
-                           zone.difficulty === 'normal' ? '⚔️' :
-                           zone.difficulty === 'hard' ? '💀' : '🔮'}
-                        </div>
-                        <div className="flex-1">
-                          <div className="flex items-center gap-3">
-                            <h3 className="font-bold text-lg">{zone.name}</h3>
-                            {zone.profile?.profileName && (
-                              <span className="text-xs px-2 py-0.5 rounded bg-gray-700 text-gray-300">
-                                {zone.profile.profileName}
-                              </span>
-                            )}
-                            <span className={`text-xs px-2 py-0.5 rounded ${
-                              zone.difficulty === 'easy' ? 'bg-green-900/50 text-green-300' :
-                              zone.difficulty === 'normal' ? 'bg-yellow-900/50 text-yellow-300' :
-                              zone.difficulty === 'hard' ? 'bg-red-900/50 text-red-300' :
-                              'bg-purple-900/50 text-purple-300'
-                            }`}>
-                              {zone.difficulty === 'easy' ? 'Facile' :
-                               zone.difficulty === 'normal' ? 'Normal' :
-                               zone.difficulty === 'hard' ? 'Difficile' : 'Secret'}
-                            </span>
-                            {zone.profile && (
-                              <span className={`text-xs px-2 py-0.5 rounded ${
-                                zone.profile.riskScore >= 7 ? 'bg-red-900/70 text-red-300' :
-                                zone.profile.riskScore >= 4 ? 'bg-orange-900/70 text-orange-300' :
-                                'bg-green-900/70 text-green-300'
-                              }`}>
-                                Risque: {zone.profile.riskScore}/10
-                              </span>
-                            )}
-                            {isNext && canEnter && (
-                              <span className="text-xs px-2 py-0.5 rounded bg-amber-600/50 text-amber-300 animate-pulse">
-                                Recommandé
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-gray-500 text-xs mt-1">{zone.description}</p>
-                          <p className="text-gray-400 text-sm mt-1">
-                            Niveaux {zone.minLevel}-{zone.maxLevel} • {zone.enemies?.length || 0} ennemis • {zone.treasureChests?.length || 0} coffres
-                          </p>
-                          {expandedZone === zone.id && (
-                            <div className="mt-3 pt-3 border-t border-gray-700">
-                              {zone.profile && (
-                                <div className="mb-2 flex flex-wrap gap-1">
-                                  {zone.profile.badges.map((badge: string) => (
-                                    <span key={badge} className={`text-xs px-2 py-0.5 rounded ${
-                                      badge === 'corruption' ? 'bg-purple-900/70 text-purple-300' :
-                                      badge === 'pièges' ? 'bg-orange-900/70 text-orange-300' :
-                                      badge === 'fire' ? 'bg-red-900/70 text-red-300' :
-                                      badge === 'ice' ? 'bg-cyan-900/70 text-cyan-300' :
-                                      badge === 'poison' ? 'bg-green-900/70 text-green-300' :
-                                      badge === 'chaos' ? 'bg-pink-900/70 text-pink-300' :
-                                      badge === 'danger' ? 'bg-yellow-900/70 text-yellow-300' :
-                                      badge === 'soins_rares' ? 'bg-red-800/70 text-red-300' :
-                                      'bg-gray-700 text-gray-300'
-                                    }`}>
-                                      {badge === 'corruption' ? '⚰️ Corruption' :
-                                       badge === 'pièges' ? '🪤 Pièges' :
-                                       badge === 'fire' ? '🔥 Feu' :
-                                       badge === 'ice' ? '❄️ Glace' :
-                                       badge === 'poison' ? '☠️ Poison' :
-                                       badge === 'chaos' ? '🌀 Chaos' :
-                                       badge === 'danger' ? '⚠️ Danger' :
-                                       badge === 'soins_rares' ? '💊 Soins Rares' :
-                                       badge}
-                                    </span>
-                                  ))}
-                                  {zone.profile.prepRecommendations.length > 0 && (
-                                    <div className="mt-2 text-xs text-gray-400">
-                                      <span className="font-bold text-amber-400">Préparez: </span>
-                                      {zone.profile.prepRecommendations.join(', ')}
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-                              <div className="mb-2">
-                                <span className="text-xs font-bold text-purple-400">👹 Enemies:</span>
-                                <div className="text-xs text-gray-400 mt-1">
-                                  {zone.enemies?.slice(0, 5).map((e: any) => e.name).join(', ')}
-                                  {(zone.enemies?.length || 0) > 5 && `... (+${(zone.enemies?.length || 0) - 5} more)`}
-                                </div>
-                              </div>
-                              <div>
-                                <span className="text-xs font-bold text-amber-400">🎁 Coffres:</span>
-                                <div className="text-xs text-gray-400 mt-1">
-                                  {zone.treasureChests?.map((c: any) => c.name).join(', ') || 'Aucun'}
-                                </div>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                        {!combatLoading && (
-                          <button 
-                            onClick={(e) => { e.stopPropagation(); handleCombat(zone) }}
-                            className={`ml-4 px-6 py-3 rounded-xl font-bold transition ${
-                              hasHighRisk 
-                                ? 'bg-red-700 hover:bg-red-600' 
-                                : hasMediumRisk
-                                  ? 'bg-orange-700 hover:bg-orange-600'
-                                  : 'bg-amber-600 hover:bg-amber-500'
-                            }`}
-                          >
-                            {hasHighRisk ? '⚠️ Danger!' : hasMediumRisk ? '⚡ Risque!' : '⚔️ Combattre'}
-                          </button>
-                        )}
-                        {combatLoading && (
-                          <div className="ml-4 px-6 py-3 bg-amber-700 rounded-xl font-bold animate-pulse">
-                            ⏳ Combat...
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
+              )}
             </div>
           )}
 
@@ -1136,8 +1003,12 @@ const data = await res.json()
                   {cityData?.zones?.map(zone => (
                     <div 
                       key={zone.id}
-                      onClick={() => handleExplore(zone)}
-                      className="flex items-center p-4 rounded-xl border-2 border-gray-700 bg-gray-900/50 hover:border-green-500 cursor-pointer"
+                      onClick={() => zone.isVisible !== false && handleExplore(zone)}
+                      className={`flex items-center p-4 rounded-xl border-2 ${
+                        zone.isVisible === false
+                          ? 'border-gray-800 bg-gray-900/30 opacity-60 cursor-not-allowed'
+                          : 'border-gray-700 bg-gray-900/50 hover:border-green-500 cursor-pointer'
+                      }`}
                     >
                       <div className="text-3xl mr-4">🧭</div>
                       <div className="flex-1">
@@ -1148,9 +1019,18 @@ const data = await res.json()
                             {zone.microZones.length} micro-zones • Rotation active
                           </div>
                         )}
+                        {zone.isVisible === false && (
+                          <div className="text-xs text-purple-300 mt-1">
+                            🔒 Zone secrète ({zone.visibilityComplexity || 'inconnue'})
+                          </div>
+                        )}
                       </div>
-                      <button className="px-4 py-2 bg-green-600 hover:bg-green-500 rounded-lg font-bold">
-                        Explorer
+                      <button className={`px-4 py-2 rounded-lg font-bold ${
+                        zone.isVisible === false
+                          ? 'bg-gray-700 text-gray-400'
+                          : 'bg-green-600 hover:bg-green-500'
+                      }`}>
+                        {zone.isVisible === false ? 'Verrouillée' : 'Explorer'}
                       </button>
                     </div>
                   ))}
@@ -2023,103 +1903,23 @@ const data = await res.json()
             </div>
           )}
 
-          {/* Titles Tab */}
+          {/* Social Tabs */}
           {activeTab === 'titles' && (
-            <div className="max-w-4xl mx-auto">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-bold">🏆 Titres</h2>
-                <div className="text-amber-400 font-bold">
-                  {titles.length} / {allTitles.length}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {allTitles.map(title => (
-                  <div
-                    key={title.id}
-                    className={`rounded-xl p-4 border-2 transition-all ${
-                      title.earned 
-                        ? 'bg-gradient-to-br from-amber-900/30 to-gray-900 border-amber-500/50' 
-                        : 'bg-gray-900/50 border-gray-800 opacity-60'
-                    }`}
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl ${
-                        title.earned ? 'bg-amber-600/30' : 'bg-gray-800'
-                      }`}>
-                        {title.icon}
-                      </div>
-                      <div>
-                        <div className={`font-bold text-lg ${title.earned ? 'text-amber-400' : 'text-gray-400'}`}>
-                          {title.name}
-                        </div>
-                        {title.earned && (
-                          <span className="text-green-400 text-xs">✓ Obtenu</span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {titles.length === 0 && (
-                <div className="text-center py-16 text-gray-500">
-                  <div className="text-6xl mb-4">🏆</div>
-                  <p className="text-lg">Aucun titre obtenu</p>
-                  <p className="text-sm mt-2">Combattez et accomplissez des hauts faits pour gagner des titres!</p>
-                </div>
-              )}
-            </div>
+            <GameSocialPanel
+              mode="titles"
+              titles={titles}
+              allTitles={allTitles}
+              chronicles={chronicles}
+            />
           )}
 
-          {/* Chronicles Tab */}
           {activeTab === 'chronicles' && (
-            <div className="max-w-4xl mx-auto">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-bold">📜 Chroniques du Serveur</h2>
-                <div className="text-amber-400 font-bold">
-                  {chronicles.length} événements
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                {chronicles.map((record: any) => (
-                  <div key={record.id} className="bg-gray-900/50 rounded-xl p-4 border border-gray-700">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-xl ${
-                          record.type === 'BOSS_KILL' ? 'bg-red-900/50' : 
-                          record.type === 'ZONE_DISCOVERY' ? 'bg-purple-900/50' :
-                          'bg-amber-900/50'
-                        }`}>
-                          {record.type === 'BOSS_KILL' ? '💀' : 
-                           record.type === 'ZONE_DISCOVERY' ? '🗺️' : '🎁'}
-                        </div>
-                        <div>
-                          <div className="font-bold text-amber-400">{record.playerName}</div>
-                          <div className="text-sm text-gray-400">
-                            {record.type === 'BOSS_KILL' && `A vaincu ${record.targetName}`}
-                            {record.type === 'ZONE_DISCOVERY' && `A découvert ${record.zoneName}`}
-                            {record.type === 'CHEST_OPEN' && `A ouvert un coffre ${record.zoneName ? `dans ${record.zoneName}` : ''}`}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        {new Date(record.timestamp).toLocaleString('fr-FR')}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {chronicles.length === 0 && (
-                <div className="text-center py-16 text-gray-500">
-                  <div className="text-6xl mb-4">📜</div>
-                  <p className="text-lg">Aucune entrée dans les Chroniques</p>
-                  <p className="text-sm mt-2">Soyez le premier à accomplir des hauts faits!</p>
-                </div>
-              )}
-            </div>
+            <GameSocialPanel
+              mode="chronicles"
+              titles={titles}
+              allTitles={allTitles}
+              chronicles={chronicles}
+            />
           )}
 
           {/* Factions Tab */}
